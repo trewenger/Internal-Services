@@ -1,7 +1,7 @@
 # Internal Services V2
 
 Unified internal web interface consolidating multiple tools into a single Flask application
-with tab-based navigation. Deployed on RWAS01 behind IIS (HTTPS via internal AD CS certificate).
+with tab-based navigation. Deployed on an on-prem server behind IIS (HTTPS via internal AD CS certificate).
 
 ---
 
