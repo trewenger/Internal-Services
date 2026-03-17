@@ -54,7 +54,7 @@ App runs at `http://localhost:5000`. Default login: `admin / changeme`.
 
 ---
 
-## Production Deployment (RWAS01)
+## Production Deployment
 
 ```bash
 cd C:\Apps\INTERNAL_SERVICES_V2
@@ -62,8 +62,7 @@ cd C:\Apps\INTERNAL_SERVICES_V2
 ```
 
 Waitress binds to `127.0.0.1:5000`. IIS sits in front, terminates TLS, and proxies
-HTTPS traffic to Flask. See `.claude/4. encrypted_traffic.md` for the full IIS and
-certificate setup.
+HTTPS traffic to Flask.
 
 The app is managed as a Windows service via NSSM.
 
