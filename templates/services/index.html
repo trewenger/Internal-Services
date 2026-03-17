@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block title %}Various Services{% endblock %}
+
+{% set can_write = user_access.get('services') == 'write' %}
+
+{% block content %}
+<div class="min-h-screen p-6">
+    <div class="max-w-7xl mx-auto">
+
+        {% if not can_write %}
+        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded-lg px-4 py-3 mb-4 text-sm flex items-center gap-2">
+            <span class="font-bold">Read-only access</span> — you can view this page but cannot run or schedule services.
+        </div>
+        {% endif %}
+
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Various Services</h1>
+            <p class="text-gray-600 mt-1">Run and schedule internal data services</p>
+        </div>
+
+        <!-- Info box -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div class="flex items-start gap-3">
+                <span class="text-blue-600 text-xl">ℹ️</span>
+                <div class="text-sm text-blue-800">
+                    <p class="font-semibold mb-1">About These Services</p>
+                    <p>Each service connects to Fishbowl and/or Google Sheets to sync data. Results are shown below after a run.
+                       Enable a service to run it on a schedule, or click "Run Now" for a one-time execution.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Service Cards -->
+        <div class="grid grid-cols-1 gap-6" id="services-grid">
+            {% for name, cfg in services.items() %}
+            <div class="bg-white rounded-lg shadow-md" id="card-{{ name }}">
+                <!-- Card Header -->
+                <div class="p-6 border-b">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div>
+                                <h2 class="text-xl font-bold text-gray-800">{{ cfg.label }}</h2>
+                                <p class="text-sm text-gray-500 mt-1">{{ descriptions[name] }}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <!-- Status badge -->
+                            <div id="status-badge-{{ name }}">
+                                {% if cfg.running %}
+                                    <span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">Running...</span>
+                                {% elif cfg.last_status == 'success' %}
+                                    <span class="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">Last run: Success</span>
+                                {% elif cfg.last_status == 'error' %}
+                                    <span class="bg-red-100 text-red-800 text-xs font-bold px-3 py-1 rounded-full">Last run: Error</span>
+                                {% else %}
+                                    <span class="bg-gray-100 text-gray-600 text-xs font-bold px-3 py-1 rounded-full">Never run</span>
+                                {% endif %}
+                            </div>
+
+                            <!-- Run Now button -->
+                            <button onclick="runService('{{ name }}')"
+                                    id="run-btn-{{ name }}"
+                                    {% if cfg.running %}disabled{% endif %}
+                                    class="bg-green-500 hover:bg-green-700 disabled:bg-gray-300 text-white font-bold py-2 px-4 rounded transition">
+                                {% if cfg.running %}Running...{% else %}▶ Run Now{% endif %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card Body: Schedule settings -->
+                <div class="p-6">
+                    <div class="flex flex-wrap items-center gap-6">
+
+                        <!-- Last run info -->
+                        <div class="text-sm text-gray-600">
+                            <span class="font-semibold">Last run:</span>
+                            <span id="last-run-{{ name }}">
+                                {% if cfg.last_run %}{{ cfg.last_run[:19].replace('T', ' ') }}{% else %}Never{% endif %}
+                            </span>
+                        </div>
+
+                        <!-- Schedule interval -->
+                        <div class="flex items-center gap-2">
+                            <label class="text-sm font-semibold text-gray-700">Schedule (minutes):</label>
+                            <input type="number" min="1"
+                                   id="interval-{{ name }}"
+                                   value="{{ cfg.schedule_interval_minutes }}"
+                                   class="border rounded py-1 px-2 w-20 text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <!-- Enable toggle -->
+                        <div class="flex items-center gap-2">
+                            <label class="text-sm font-semibold text-gray-700">Scheduled:</label>
+                            <button onclick="toggleEnabled('{{ name }}')"
+                                    id="toggle-btn-{{ name }}"
+                                    class="relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none
+                                           {% if cfg.enabled %}bg-blue-500{% else %}bg-gray-300{% endif %}">
+                                <span class="inline-block h-5 w-5 transform rounded-full bg-white transition-transform shadow
+                                             {% if cfg.enabled %}translate-x-8{% else %}translate-x-1{% endif %}"
+                                      id="toggle-circle-{{ name }}"></span>
+                            </button>
+                            <span id="toggle-label-{{ name }}" class="text-sm
+                                  {% if cfg.enabled %}text-blue-600 font-bold{% else %}text-gray-500{% endif %}">
+                                {% if cfg.enabled %}On{% else %}Off{% endif %}
+                            </span>
+                        </div>
+
+                        <!-- Save config button -->
+                        <button onclick="saveConfig('{{ name }}')"
+                                class="bg-blue-500 hover:bg-blue-700 text-white text-sm font-bold py-1 px-3 rounded transition">
+                            Save Schedule
+                        </button>
+                    </div>
+
+                    <!-- Log output (hidden until run) -->
+                    <div id="log-panel-{{ name }}" class="mt-4 {% if not cfg.last_log %}hidden{% endif %}">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-semibold text-gray-700">Run Output</span>
+                            <button onclick="toggleLog('{{ name }}')" id="log-toggle-{{ name }}"
+                                    class="text-xs text-blue-600 hover:underline">Hide</button>
+                        </div>
+                        <div id="log-content-{{ name }}"
+                             class="bg-gray-50 border rounded p-3 text-xs font-mono text-gray-700 overflow-y-auto"
+                             style="max-height: 250px;">
+                            {% if cfg.last_log %}
+                                {% for func, messages in cfg.last_log.items() %}
+                                    <div class="mb-2">
+                                        <span class="font-bold text-gray-800">{{ func }}:</span>
+                                        {% for msg in messages %}
+                                            <div class="ml-4 text-gray-600">{{ msg }}</div>
+                                        {% endfor %}
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+    </div>
+</div>
+
+{% block scripts %}
+{% if not can_write %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('button, input, select').forEach(el => {
+            el.disabled = true;
+        });
+    });
+</script>
+{% endif %}
+<script>
+    // Track enabled state per service
+    const enabledState = {};
+    {% for name, cfg in services.items() %}
+    enabledState['{{ name }}'] = {{ 'true' if cfg.enabled else 'false' }};
+    {% endfor %}
+
+    function showNotification(message, type = 'info') {
+        const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500' };
+        const el = document.createElement('div');
+        el.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded shadow-lg z-50 text-sm`;
+        el.textContent = message;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 6000);
+    }
+
+    async function runService(name) {
+        const btn = document.getElementById(`run-btn-${name}`);
+        const badge = document.getElementById(`status-badge-${name}`);
+        btn.disabled = true;
+        btn.textContent = 'Starting...';
+
+        try {
+            const resp = await fetch(`/services/run/${name}`, { method: 'POST' });
+            const result = await resp.json();
+
+            if (resp.ok && result.success) {
+                btn.textContent = 'Running...';
+                badge.innerHTML = '<span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">Running...</span>';
+                showNotification(`${result.message}. Polling for results...`, 'info');
+                pollStatus(name);
+            } else {
+                showNotification(result.error || 'Failed to start service', 'error');
+                btn.disabled = false;
+                btn.textContent = '▶ Run Now';
+            }
+        } catch (e) {
+            showNotification('Error starting service', 'error');
+            btn.disabled = false;
+            btn.textContent = '▶ Run Now';
+        }
+    }
+
+    function pollStatus(name, attempts = 0) {
+        if (attempts > 60) {  // stop after 5 minutes
+            showNotification(`Timed out waiting for ${name} to complete`, 'error');
+            return;
+        }
+        setTimeout(async () => {
+            try {
+                const resp = await fetch('/services/status');
+                const result = await resp.json();
+                const svc = result.services[name];
+
+                if (!svc.running) {
+                    // Service finished — update UI
+                    updateServiceUI(name, svc);
+                    const label = svc.label || name;
+                    if (svc.last_status === 'success') {
+                        showNotification(`${label} completed successfully`, 'success');
+                    } else {
+                        showNotification(`${label} finished with errors`, 'error');
+                    }
+                } else {
+                    pollStatus(name, attempts + 1);
+                }
+            } catch (e) {
+                pollStatus(name, attempts + 1);
+            }
+        }, 5000);  // poll every 5 seconds
+    }
+
+    function updateServiceUI(name, svc) {
+        const btn = document.getElementById(`run-btn-${name}`);
+        const badge = document.getElementById(`status-badge-${name}`);
+        const lastRunEl = document.getElementById(`last-run-${name}`);
+        const logPanel = document.getElementById(`log-panel-${name}`);
+        const logContent = document.getElementById(`log-content-${name}`);
+
+        btn.disabled = false;
+        btn.textContent = '▶ Run Now';
+
+        if (svc.last_status === 'success') {
+            badge.innerHTML = '<span class="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">Last run: Success</span>';
+        } else {
+            badge.innerHTML = '<span class="bg-red-100 text-red-800 text-xs font-bold px-3 py-1 rounded-full">Last run: Error</span>';
+        }
+
+        if (svc.last_run) {
+            lastRunEl.textContent = svc.last_run.substring(0, 19).replace('T', ' ');
+        }
+
+        if (svc.last_log) {
+            let html = '';
+            for (const [func, messages] of Object.entries(svc.last_log)) {
+                html += `<div class="mb-2"><span class="font-bold text-gray-800">${func}:</span>`;
+                for (const msg of messages) {
+                    html += `<div class="ml-4 text-gray-600">${msg}</div>`;
+                }
+                html += '</div>';
+            }
+            logContent.innerHTML = html;
+            logPanel.classList.remove('hidden');
+        }
+    }
+
+    function toggleLog(name) {
+        const panel = document.getElementById(`log-panel-${name}`);
+        const btn = document.getElementById(`log-toggle-${name}`);
+        const content = document.getElementById(`log-content-${name}`);
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            btn.textContent = 'Hide';
+        } else {
+            content.classList.add('hidden');
+            btn.textContent = 'Show';
+        }
+    }
+
+    function toggleEnabled(name) {
+        enabledState[name] = !enabledState[name];
+        const btn = document.getElementById(`toggle-btn-${name}`);
+        const circle = document.getElementById(`toggle-circle-${name}`);
+        const label = document.getElementById(`toggle-label-${name}`);
+
+        if (enabledState[name]) {
+            btn.classList.remove('bg-gray-300');
+            btn.classList.add('bg-blue-500');
+            circle.classList.remove('translate-x-1');
+            circle.classList.add('translate-x-8');
+            label.textContent = 'On';
+            label.className = 'text-sm text-blue-600 font-bold';
+        } else {
+            btn.classList.remove('bg-blue-500');
+            btn.classList.add('bg-gray-300');
+            circle.classList.remove('translate-x-8');
+            circle.classList.add('translate-x-1');
+            label.textContent = 'Off';
+            label.className = 'text-sm text-gray-500';
+        }
+    }
+
+    async function saveConfig(name) {
+        const interval = parseInt(document.getElementById(`interval-${name}`).value);
+        if (!interval || interval < 1) {
+            showNotification('Please enter a valid interval (>= 1 minute)', 'error');
+            return;
+        }
+
+        try {
+            const resp = await fetch(`/services/config/${name}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ schedule_interval_minutes: interval, enabled: enabledState[name] })
+            });
+            const result = await resp.json();
+            if (resp.ok && result.success) {
+                const label = result.config.label || name;
+                const scheduleMsg = enabledState[name] ? `scheduled every ${interval} min` : 'schedule disabled';
+                showNotification(`${label}: ${scheduleMsg}`, 'success');
+            } else {
+                showNotification(result.error || 'Failed to save config', 'error');
+            }
+        } catch (e) {
+            showNotification('Error saving config', 'error');
+        }
+    }
+</script>
+{% endblock %}
+{% endblock %}

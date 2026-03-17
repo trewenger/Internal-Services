@@ -1,0 +1,44 @@
+# global ignores (all locations)
+**/.env
+**/cred_notes.txt
+**/envExample.txt
+**/__pycache__
+**/venv
+**/venv/*
+**/.venv
+**/.venv/*
+**/claude.md
+envExample.txt
+.vscode
+.vscode/
+.claude
+.claude/
+credentials.json
+
+# Package build artifacts
+*.egg-info/
+src/common.egg-info
+src/common.egg-info/
+
+#               common files and folders
+# Retain query folder and __init__ but remove all other content (like sql files)
+API_Service_network/src/common/Clients/Fishbowl/Queries/*
+!API_Service_network/src/common/Clients/Fishbowl/Queries/__init__.py
+!API_Service_network/src/common/Clients/Fishbowl/Queries/put_MySQL_queries_here.txt
+
+# Remove Google's credentials.json
+API_Service_network/src/common/Clients/Google/credentials.json
+
+#               Retail Inventory Manager
+API_Service_network/RetailInventoryManager/output/*
+API_Service_network/RetailInventoryManager/log.json
+API_Service_network/RetailInventoryManager/data.json
+
+
+#            Various Automations and Internal Services
+API_Service_network/VariousInternalServices/Outputs/*
+API_Service_network/VariousInternalServices/Queries/*
+
+# other:
+readme.txt
+!API_Service_network/src/common/Clients/Google/README.txt

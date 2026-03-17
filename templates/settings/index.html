@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}Settings — Internal Services{% endblock %}
+
+{% block content %}
+<div class="min-h-screen p-6">
+    <div class="max-w-7xl mx-auto">
+
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Settings</h1>
+            <p class="text-gray-600 mt-1">Manage user accounts and access permissions</p>
+        </div>
+
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <div class="px-4 py-3 rounded mb-4
+                    {% if category == 'success' %}bg-green-100 border border-green-400 text-green-700
+                    {% else %}bg-red-100 border border-red-400 text-red-700{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endwith %}
+
+        <!-- Invite New User -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Invite New User</h2>
+            <form method="POST" action="{{ url_for('settings.invite') }}" class="flex flex-wrap gap-4 items-end">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Username</label>
+                    <input type="text" name="username" required
+                           class="border rounded py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-40"
+                           placeholder="e.g. jsmith">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                    <input type="email" name="email" required
+                           class="border rounded py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+                           placeholder="user@company.com">
+                </div>
+                <button type="submit"
+                        class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition text-sm">
+                    Send Invite
+                </button>
+            </form>
+            <p class="text-xs text-gray-500 mt-3">
+                New users receive 'Read' access to all sections except 'Settings' by default.
+                You can adjust permissions after sending their invite.
+            </p>
+        </div>
+
+        <!-- User Table -->
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+            <div class="p-6 border-b">
+                <h2 class="text-xl font-bold text-gray-800">Users</h2>
+                <p class="text-xs text-gray-500 mt-3">
+                    - Users cannot have Read access to 'Settings'. 
+                </p>
+                <p class="text-xs text-gray-500 mt-3">
+                    - Users will not be able to login if all their access is set to 'None'.
+                </p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+                            <th class="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                            <th class="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            {% for section in sections %}
+                            <th class="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{{ section | title }}</th>
+                            {% endfor %}
+                            <th class="px-6 py-3"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        {% for username, user in users.items() %}
+                        <tr id="row-{{ username }}">
+                            <td class="px-6 py-4 font-semibold text-gray-800">{{ username }}</td>
+                            <td class="px-6 py-4 text-gray-600">{{ user.email or '—' }}</td>
+                            <td class="px-6 py-4">
+                                {% if user.status == 'active' %}
+                                    <span class="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">Active</span>
+                                {% elif user.status == 'inactive' %}
+                                    <span class="bg-red-100 text-red-800 text-xs font-bold px-3 py-1 rounded-full">Inactive</span>
+                                {% else %}
+                                    <span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">Invited</span>
+                                {% endif %}
+                            </td>
+                            {% for section in sections %}
+                            <td class="px-4 py-4 text-center">
+                                <select onchange="saveAccess('{{ username }}')"
+                                        id="access-{{ username }}-{{ section }}"
+                                        class="border rounded py-1 px-2 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="none"  {% if user.access.get(section, 'none') == 'none'  %}selected{% endif %}>None</option>
+                                    <option value="read"  {% if user.access.get(section, 'none') == 'read'  %}selected{% endif %}>Read</option>
+                                    <option value="write" {% if user.access.get(section, 'none') == 'write' %}selected{% endif %}>Write</option>
+                                </select>
+                            </td>
+                            {% endfor %}
+                            <td class="px-6 py-4 text-right">
+                                {% if user.status == 'invited' %}
+                                <button onclick="resendInvite('{{ username }}')"
+                                        class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded transition text-sm">
+                                        Resend invite
+                                </button>
+                                {% endif %}
+
+                                {% if user.status == 'active' %}
+                                <button onclick="deactivate('{{ username }}')"
+                                        class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded transition text-sm">
+                                        Deactivate User
+                                </button>
+                                {% endif %}
+
+                                {% if user.status == 'inactive' %}
+                                <button onclick="reactivate('{{ username }}')"
+                                        class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded transition text-sm">
+                                        Reactivate User
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const sections = {{ sections | tojson }};
+
+    function showNotification(message, type = 'info') {
+        const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500' };
+        const el = document.createElement('div');
+        el.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded shadow-lg z-50 text-sm`;
+        el.textContent = message;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 5000);
+    }
+
+    async function saveAccess(username) {
+        const access = {};
+        for (const section of sections) {
+            const el = document.getElementById(`access-${username}-${section}`);
+            access[section] = el ? el.value : 'none';
+        }
+        try {
+            const resp = await fetch(`/settings/users/${username}/access`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ access })
+            });
+            const result = await resp.json();
+            if (resp.ok && result.success) {
+                showNotification(`${username}: access updated`, 'success');
+                setTimeout(() => location.reload(), 3000);
+            } else {
+                showNotification(result.error || 'Failed to save', 'error');
+            }
+        } catch (e) {
+            showNotification('Error saving access', 'error');
+        }
+    }
+
+    async function resendInvite(username) {
+        try {
+            const resp = await fetch(`/settings/invite/resend/${username}`, { method: 'POST' });
+            const result = await resp.json();
+            if (resp.ok && result.success) {
+                showNotification(result.message, 'success');
+                setTimeout(() => location.reload(), 3000);
+            } else {
+                showNotification(result.error || 'Failed to resend', 'error');
+            }
+        } catch (e) {
+            showNotification('Error resending invite', 'error');
+        }
+    }
+
+    async function deactivate(username) {
+        try {
+            const resp = await fetch(`/settings/users/${username}/deactivate`, { method: 'POST' });
+            const result = await resp.json();
+            if (resp.ok && result.success) {
+                showNotification(result.message, 'success');
+                setTimeout(() => location.reload(), 3000);
+            } else {
+                showNotification(result.error || 'Failed to deactivate', 'error');
+            }
+        } catch (e) {
+            showNotification('Error deactivating user', 'error');
+        }
+    }
+
+    async function reactivate(username) {
+        try {
+            const resp = await fetch(`/settings/users/${username}/reactivate`, { method: 'POST' });
+            const result = await resp.json();
+            if (resp.ok && result.success) {
+                showNotification(result.message, 'success');
+                setTimeout(() => location.reload(), 3000);
+            } else {
+                showNotification(result.error || 'Failed to reactivate', 'error');
+            }
+        } catch (e) {
+            showNotification('Error reactivating user', 'error');
+        }
+    }
+</script>
+{% endblock %}

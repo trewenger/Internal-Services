@@ -1,0 +1,18 @@
+[project]
+name = "common"
+version = "0.1.0"
+description = "Internal shared code for all services"
+authors = [{ name = "Tre Wenger" }]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

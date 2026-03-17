@@ -1,0 +1,38 @@
+{
+  "on-time-performance": {
+    "label": "On-Time Performance",
+    "schedule_interval_minutes": 1440,
+    "enabled": false,
+    "running": false,
+    "last_run": null,
+    "last_status": null,
+    "last_log": null
+  },
+  "tax-system-health": {
+    "label": "Tax System Health",
+    "schedule_interval_minutes": 1440,
+    "enabled": false,
+    "running": false,
+    "last_run": null,
+    "last_status": null,
+    "last_log": null
+  },
+  "vendor-tracker": {
+    "label": "Vendor Tracker",
+    "schedule_interval_minutes": 1440,
+    "enabled": false,
+    "running": false,
+    "last_run": null,
+    "last_status": null,
+    "last_log": null
+  },
+  "wip-update": {
+    "label": "WIP Update",
+    "schedule_interval_minutes": 1440,
+    "enabled": false,
+    "running": false,
+    "last_run": null,
+    "last_status": null,
+    "last_log": null
+  }
+}

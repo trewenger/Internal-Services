@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Intuiflow — Internal Services{% endblock %}
+
+{% block content %}
+<div class="min-h-screen p-6">
+    <div class="max-w-7xl mx-auto">
+
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Intuiflow</h1>
+            <p class="text-gray-600 mt-1">Intuiflow API integration</p>
+        </div>
+
+        <!-- Coming Soon card -->
+        <div class="bg-white rounded-lg shadow-md p-12 text-center">
+            <div class="text-6xl mb-4">🚧</div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Coming Soon</h2>
+            <p class="text-gray-600 mb-8 max-w-lg mx-auto">
+                The Intuiflow integration is currently under development. The API client is a work in progress
+                and will be wired into this interface once it's stable.
+            </p>
+
+            <!-- Planned features -->
+            <div class="max-w-md mx-auto bg-gray-50 border border-gray-200 rounded-lg p-6 text-left">
+                <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Planned Capabilities</h3>
+                <ul class="space-y-3 text-sm text-gray-600">
+                    <li class="flex items-start gap-2">
+                        <span class="text-blue-400 mt-0.5">○</span>
+                        <span><span class="font-semibold">BOM Import Pipeline</span> — Create, validate, and run Bill of Materials imports</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-blue-400 mt-0.5">○</span>
+                        <span><span class="font-semibold">Pending Order Management</span> — View and commit pending planner orders</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-blue-400 mt-0.5">○</span>
+                        <span><span class="font-semibold">Open Work Orders</span> — View and manage open scheduling orders</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-blue-400 mt-0.5">○</span>
+                        <span><span class="font-semibold">ROPE Items</span> — Monitor open and closed ROPE scheduling items</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="text-blue-400 mt-0.5">○</span>
+                        <span><span class="font-semibold">Test / Production Toggle</span> — Switch between test and production Intuiflow environments</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
