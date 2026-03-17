@@ -35,7 +35,8 @@ def invite():
 
     
     token = generate_invite_token(username)
-    accept_url = url_for('auth.accept_invite', token=token, _external=True)
+    base = Config.APP_BASE_URL or request.host_url.rstrip('/')
+    accept_url = base + url_for('auth.accept_invite', token=token)
 
     html_body = f"""
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
@@ -84,7 +85,8 @@ def resend_invite(username):
         return jsonify({'error': 'User not found or already active'}), 400
 
     token = generate_invite_token(username)
-    accept_url = url_for('auth.accept_invite', token=token, _external=True)
+    base = Config.APP_BASE_URL or request.host_url.rstrip('/')
+    accept_url = base + url_for('auth.accept_invite', token=token)
     email = user.get('email', '')
 
     html_body = f"""

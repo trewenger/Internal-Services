@@ -152,7 +152,8 @@ def forgot_password():
 
         if username and user and user.get('status') == 'active':
             token = generate_reset_token(username)
-            reset_url = url_for('auth.reset_password', token=token, _external=True)
+            base = Config.APP_BASE_URL or request.host_url.rstrip('/')
+            reset_url = base + url_for('auth.reset_password', token=token)
             html_body = f"""
             <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
                 <h2 style="color: #1e40af;">Password reset request</h2>

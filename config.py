@@ -17,6 +17,10 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True   # JavaScript cannot read the session cookie
     SESSION_COOKIE_SAMESITE = 'Lax'  # Cookie not sent on cross-site requests
 
+    # Public base URL — used to build links in invite and password reset emails.
+    # Set in .env for production (e.g. https://RWAS01). Falls back to request host if not set.
+    APP_BASE_URL = os.getenv('APP_BASE_URL', '').rstrip('/')
+
     # Admin email for triggered error email logging
     ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'user@example.com')
     SENDER_EMAIL = os.getenv('SENDER_EMAIL', 'sender@example.com')
@@ -32,7 +36,7 @@ class Config:
     FISHBOWL_USERNAME = os.getenv('FISHBOWL_USERNAME', 'admin')
     FISHBOWL_PASSWORD = os.getenv('FISHBOWL_PASSWORD', 'password')
     FISHBOWL_COMPANY_NAME = os.getenv('FISHBOWL_COMPANY_NAME', 'company_name_here')
-    USE_TEST_DB = True
+    USE_TEST_DB = os.getenv('USE_TEST_DB', True) == "True"
 
     # Avalara settings
     AVA_USERNAME=os.getenv('AVA_USERNAME', 'your-avalara-admin-login-username')
