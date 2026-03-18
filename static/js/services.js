@@ -177,6 +177,7 @@ function saveSchedule(name) {
         const time = document.getElementById(`daily-time-${name}`).value;
         if (!time) { showNotification('Please select a time', 'error'); return; }
         const [hour, minute] = time.split(':').map(Number);
+        payload.schedule_type = 'cron';
         payload.schedule_cron = { hour, minute };
 
     } else if (type === 'weekly') {
@@ -184,6 +185,7 @@ function saveSchedule(name) {
         const time = document.getElementById(`weekly-time-${name}`).value;
         if (!time) { showNotification('Please select a time', 'error'); return; }
         const [hour, minute] = time.split(':').map(Number);
+        payload.schedule_type = 'cron';
         payload.schedule_cron = { day_of_week: day, hour, minute };
 
     } else if (type === 'custom') {
@@ -192,6 +194,7 @@ function saveSchedule(name) {
         // Parse 5-field cron: minute hour day_of_month month day_of_week
         const parts = expr.split(/\s+/);
         if (parts.length !== 5) { showNotification('Cron expression must have 5 fields (e.g. 0 9 * * 1-5)', 'error'); return; }
+        payload.schedule_type = 'cron';
         payload.schedule_cron = {
             minute:      parts[0],
             hour:        parts[1],
