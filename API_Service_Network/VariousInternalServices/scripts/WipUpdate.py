@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 import pandas, os
 
 # ----------------------------- Globals ------------------------------- #
+__all__ = ["wip_update"]
 WIP_TRACKER_ID = None
 SS = None
 REPO_ROOT = None

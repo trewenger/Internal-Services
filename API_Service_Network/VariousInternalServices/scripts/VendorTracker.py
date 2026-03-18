@@ -23,6 +23,7 @@ from common.Utils.Utils import load_query
 from datetime import datetime
 
 # ----------------------------- Globals ------------------------------- #
+__all__ = ["vendor_tracker"]
 VENDOR_TRACKER_SHEET_ID = None
 SS = None
 TODAY = None
@@ -193,7 +194,7 @@ def vendor_tracker(result_recipients:list[str], notification_mode:str="none", co
     """
     This function performs the update of the vendor tracker Google Sheet. This script requires a env
     file with several defined params including an SMTP2GO_API_KEY, VENDOR_TRACKER_SHEET_ID, and all fishbowl info.
-    In addition a sql query must be defined and stored in the Queries folder. 
+    In addition a sql query must be defined and stored in somewhere in the project. 
     
     :param result_recipients: List of email recipients for notification
     :type result_recipients: list

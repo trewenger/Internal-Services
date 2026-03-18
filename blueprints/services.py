@@ -84,20 +84,24 @@ def _maybe_notify(cfg: dict, success: bool, log_data: dict) -> None:
 # To add custom kwargs for a service, add them to the service function call below.
 # ============================================================================
 
-
+# WORKING AND COMPLETED
 def run_on_time_performance(triggered_by:str='scheduler') -> None:
     services_config.set_running('on-time-performance', True)
+    config = services_config.get('on-time-performance')
+    notify_recipients = config['notify_recipients']
+    notify_mode = config['notify_mode']
+
     try:
         from API_Service_Network.VariousInternalServices.scripts.OnTimePerformance import on_time_performance
-        log_obj  = on_time_performance(result_recipients=[], custom_headers=None)
+        log_obj  = on_time_performance(result_recipients=notify_recipients, notification_mode=notify_mode)
         success  = log_obj.error_flag() == 0
         log_data = log_obj.get_log()
     except Exception as e:
         success, log_data = False, {'error': [str(e)]}
         logger.error(f'on-time-performance failed: {e}')
+
     services_config.save_result('on-time-performance', success)
     services_log.append_run('on-time-performance', 'success' if success else 'error', triggered_by, log_data)
-    _maybe_notify(services_config.get('on-time-performance'), success, log_data)
 
 # WORKING AND COMPLETED
 def run_tax_system_health(triggered_by:str='scheduler') -> None:
@@ -136,7 +140,7 @@ def run_vendor_tracker(triggered_by:str='scheduler') -> None:
     services_config.save_result('vendor-tracker', success)
     services_log.append_run('vendor-tracker', 'success' if success else 'error', triggered_by, log_data)
 
-
+# WORKING AND COMPLETED
 def run_wip_update(triggered_by:str='scheduler') -> None:
     services_config.set_running('wip-update', True)
     try:

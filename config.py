@@ -49,7 +49,9 @@ class Config:
     GOOGLE_SERVICE_SCOPES = os.getenv('GOOGLE_SERVICE_SCOPES', 'service-scopes-here')
     GOOGLE_CREDENTIALS_PATH = os.getenv('GOOGLE_CREDENTIALS_PATH', 'json-cred-file-path')
     
-    # Various Google Sheet IDs
+    # Various Google Sheet IDs and URLs
     VENDOR_TRACKER_SHEET_ID = os.getenv('VENDOR_TRACKER_SHEET_ID', 'sheet-id-here')
     WIP_TRACKER_SHEET_ID = os.getenv('WIP_TRACKER_SHEET_ID', 'sheet-id-here')
+    ON_TIME_PERFORMANCE_SHEET_ID = os.getenv('ON_TIME_PERFORMANCE_SHEET_ID', 'sheet-id-here')
+    ON_TIME_PERFORMANCE_SHEET_URL = os.getenv('ON_TIME_PERFORMANCE_SHEET_URL', 'full-sheet-url-here')
     

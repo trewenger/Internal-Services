@@ -6,17 +6,14 @@ Queries fishbowl for the order info, then pastes it into the database sheet of t
 On-Time Performance SS, and sends a summary report email. 
 """
 
-import os
-from dotenv import load_dotenv
-load_dotenv()
-
+from config import Config
 from common.Clients.Fishbowl.FishbowlSession import FishbowlSession
 from common.Clients.Google.GoogleSession import *
 from common.Clients.Email.EmailApi import *
 from common.Utils.Logging import SessionLog
 from common.Utils.Utils import load_query
 from datetime import datetime
-exit()
+
 # ----------------------------- Globals ------------------------------- #
 __all__ = ["on_time_performance"]
 TODAY = None
@@ -32,7 +29,7 @@ def _get_fb_data(query) -> dict:
     an error if applicable.
     """
     try:
-        fb_session = FishbowlSession()
+        fb_session = FishbowlSession(is_test_db=Config.USE_TEST_DB)
         LOG.log("get_fb_data", "Successfully logged in. ")
         result = fb_session.query(query)
         LOG.log("get_fb_data", "Successfully saved query. ")
@@ -132,31 +129,38 @@ def _draft_email(recipients:list) -> None:
     
 #---------------------------------------------------------------------#
 
-def on_time_performance(result_recipients:list, custom_headers:list, query_name:str='OnTimePerformance.sql', last_row:int = 200000) -> object:
+def on_time_performance(result_recipients:list[str], notification_mode:str="none", custom_headers:list=[], 
+                        query_name:str='OnTimePerformance.sql', last_row:int = 200000) -> object:
     """
     Syncs the on time performance Google Sheet with current Fishbowl data. 
-    Requires a defined SELECT query in a .sql file in VariousInternalServices/Queries/.
+    Requires a defined SELECT query in a .sql file somewhere in the project.
     Also requires a .env file in the same directory defining ON_TIME_PERFORMANCE_SHEET_ID,
     and ON_TIME_PERFORMANCE_SHEET_URL.
 
-    :param result_recipients: A list of email addresses to recieve the run summary email.
+    :param result_recipients: List of email recipients for notification
+    :type result_recipients: list
+    :param notification_mode: 'none', 'failure' for abnormal/error run notifications, and 'always' for notification on every run
+    :type notification_mode: str
     :param custom_headers: Optional. To dictate paste column order. Must match column values from the SQL query.
+    :type custom_headers: list
     :param query_name: Optional. The name of the query to run to get needed data. Searches for 'OnTimePerformance.sql' by default.
+    :type query_name: str
     :param last_row: Optional. 200000 by default. Do not let program paste past this row, and send an email once the limit has been hit.
+    :type last_row: int
     :return: The session logging output object.
     """
 
     global TODAY, SHEET_ID, SHEET_URL, LOG, SS
     TODAY = (datetime.now()).strftime("%m/%d/%Y")
-    SHEET_ID = os.getenv('ON_TIME_PERFORMANCE_SHEET_ID')
-    SHEET_URL = os.getenv('ON_TIME_PERFORMANCE_SHEET_URL')
-    LOG = SessionLog()
+    SHEET_ID = Config.ON_TIME_PERFORMANCE_SHEET_ID
+    SHEET_URL = Config.ON_TIME_PERFORMANCE_SHEET_URL
     SS = GoogleSession(SHEET_ID)
+    LOG = SessionLog()
 
     # Find the .sql SELECT query and load it as a string
     query = load_query(query_name)
     if not query:
-        LOG.log('load_query', "Query failed to load. Unable to query the FB DB. ", True)
+        LOG.log('load_query', 'Query failed to load. Unable to query the FB DB. ', True)
 
     # Run the query against the Fishbowl DB and return the response
     if LOG.error_flag() == 0:
@@ -169,14 +173,16 @@ def on_time_performance(result_recipients:list, custom_headers:list, query_name:
     # Paste the query response values into the indentified cell range
     if LOG.error_flag() == 0:
         # Use customer headers if passed
-        headers = custom_headers
-        if not headers:
-            headers = list(query_resp.get('data')[0].keys())
-
+        default_headers = ['OrderType', 'SO', 'SoDateCreated', 'Family', 'SKU', 'Description', 'QuantityOrdered', 
+                        'QuantityFulfilled', 'DateFulfilled', 'DateScheduled', 'LeadTime', 'DateScheduledFlag']
+        headers = custom_headers if custom_headers else default_headers
         _paste_data(query_resp.get('data'), start_row, headers)
     
     # Send summary email: success or failure
-    if result_recipients:
-        _draft_email(result_recipients)
+    if result_recipients and notification_mode != 'none':
+        if notification_mode == 'always':
+            _draft_email(result_recipients)
+        elif LOG.error_flag() == 1:
+            _draft_email(result_recipients)
 
     return LOG
