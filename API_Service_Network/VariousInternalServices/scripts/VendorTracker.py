@@ -12,10 +12,8 @@ field entries, or entries that do not match any existing part name in the Google
 will cause an error email to be sent. 
 """
 
-import os
-from dotenv import load_dotenv
-load_dotenv()
 
+from config import Config
 from common.Clients.Google.GoogleSession import *
 from common.Clients.Fishbowl.FishbowlSession import *
 from common.Clients.Email.EmailApi import *
@@ -38,7 +36,7 @@ def _get_fb_data(query) -> object:
     Logs into fishbowl and queries the data, returns the response or None if failure.
     """
     try:
-        session = FishbowlSession(attempt_wait_secs=30)
+        session = FishbowlSession(is_test_db=Config.USE_TEST_DB)
         LOG.log("get_fb_data", "Successfully logged in. ")
         qty_at_vendor = session.query(query)
         LOG.log("get_fb_data", "Successfully saved query. ")
@@ -92,7 +90,8 @@ def _check_name_is_valid(qty_at_vendor, name_range, sheet_name):
 
         # Reformatting google range read to a list of values instead of 2D list.
         LOG.log("check_name_is_valid", "Starting check to see if FB WIP names are present in the WIP Tracker. ")
-        wip_names_read = SS.read_range(sheet_name, name_range)
+        print(sheet_name, name_range)
+        wip_names_read = SS.read_range("Import", "Q2:Q")
         wip_names = []
         for arr in wip_names_read:
             if arr[0] and arr:
@@ -131,7 +130,7 @@ def _paste_data(qty_at_vendor, column_order, sheet_name, paste_range, date_cell)
     """
     try:
         LOG.log("paste_data", "Updating sheet data... ")
-        column_order = qty_at_vendor.keys() if not column_order else column_order
+        column_order = qty_at_vendor[0].keys() if not column_order else column_order
         rows = [[row.get(k, "") for k in column_order] for row in qty_at_vendor]
         
         # Updating cell's data.
@@ -185,20 +184,21 @@ def _summary_email(email_rec_list) -> None:
         email_body += "</ul>"
     email_body += "</ol>"
 
-    response = send_email(email_subject, email_body, email_rec_list)
-    print(f'Email send attempt: {response.status_code, response.reason}')
+    send_email(email_subject, email_body, email_rec_list)
 
 #---------------------------- Main -------------------------------------#
 
-def vendor_tracker(email_rec:list[str], column_order:list[str], sheet_name:str='import', query_name:str="VendorTracker", 
-                   paste_range:str="A3:D", last_updated_cell:str="E3:E3", wip_name_range:str="Q2:Q"):
+def vendor_tracker(result_recipients:list[str], notification_mode:str="none", column_order:list[str]=[], sheet_name:str='Import', 
+                   query_name:str="VendorTracker", paste_range:str="A3:D", last_updated_cell:str="E3:E3", wip_name_range:str="Q2:Q"):
     """
     This function performs the update of the vendor tracker Google Sheet. This script requires a env
     file with several defined params including an SMTP2GO_API_KEY, VENDOR_TRACKER_SHEET_ID, and all fishbowl info.
     In addition a sql query must be defined and stored in the Queries folder. 
     
-    :param email_rec: REQUIRED. A list of recipients for the run summary email to be sent to.
-    :type email_rec: list[str]
+    :param result_recipients: List of email recipients for notification
+    :type result_recipients: list
+    :param notification_mode: 'none', 'failure' for abnormal/error run notifications, and 'always' for notification on every run
+    :type notification_mode: str
     :param column_order: OPT. he order of column headers for the pasted data. Must align with the headers returned by the query. Ex: ['PartNumber', 'Description', 'Qty', 'WipName']
     :type column_order: list[str]
     :param sheet_name: OPT. The name of the Google Sheet to read and update, 'Import' by default.
@@ -216,11 +216,15 @@ def vendor_tracker(email_rec:list[str], column_order:list[str], sheet_name:str='
 
     # set globals on function run.
     global LOG, VENDOR_TRACKER_SHEET_ID, SS, TODAY, WIP_NAMES_FLAG
-    VENDOR_TRACKER_SHEET_ID = os.getenv('VENDOR_TRACKER_SHEET_ID')
+    VENDOR_TRACKER_SHEET_ID = Config.VENDOR_TRACKER_SHEET_ID
     SS = GoogleSession(VENDOR_TRACKER_SHEET_ID)
     TODAY = (datetime.now()).strftime("%m/%d/%Y")
     LOG = SessionLog()
     WIP_NAMES_FLAG = 0
+
+    if not VENDOR_TRACKER_SHEET_ID:
+        LOG.log("vendor_tracker", "Missing Sheet ID: Please provide a VENDOR_TRACKER_SHEET_ID variable in a project config file", True)
+        return LOG
 
     # load the query
     query = load_query(query_name)
@@ -240,8 +244,15 @@ def vendor_tracker(email_rec:list[str], column_order:list[str], sheet_name:str='
     # Update the Google Sheet data
     if LOG.error_flag() == 0:
         _paste_data(qty_at_vendor, column_order, sheet_name, paste_range, last_updated_cell)
-        
-    # Always send a run summary email
-    _summary_email(email_rec)
+
+    # send the email summary
+    print(result_recipients, notification_mode, LOG.error_flag())
+    if result_recipients and notification_mode != "none":
+        # CASE 1: error in script - send if error flag = 1 and any email notifications are enabled
+        if (LOG.error_flag() == 1 or WIP_NAMES_FLAG == 1) and notification_mode != "none":
+            _summary_email(result_recipients)
+        # CASE 2: no error flag - send only if error_flag = 0
+        elif notification_mode == "always":
+            _summary_email(result_recipients)
 
     return LOG

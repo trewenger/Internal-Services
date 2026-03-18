@@ -1,39 +1,22 @@
-import threading
-import sys
-import os
-from datetime import datetime
-from flask import Blueprint, render_template, request, jsonify, session
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.schedulers.base import STATE_RUNNING
 import logging
+import os
+import threading
+from datetime import datetime
 
-from blueprints.auth import login_required, access_required
-from API_Service_Network.VariousInternalServices import load_services_config, save_services_config
+from apscheduler.schedulers.background import BackgroundScheduler
+from flask import Blueprint, jsonify, render_template, request
+
+from API_Service_Network.VariousInternalServices.data import ServicesConfig, ServicesLog
+from blueprints.auth import access_required, login_required
+from common.Clients.Email.EmailApi import send_email
+from config import Config
 
 services_bp = Blueprint('services', __name__)
-
 logger = logging.getLogger(__name__)
 
-# --------------------------------- Service Registry --------------------------------- #
-# Lazy imports — the scripts call load_dotenv() at module level so we import them
-# here after the app's .env has been loaded.
-
-def _get_service_func(service_name: str):
-    """Returns the callable for the given service name."""
-    if service_name == 'on-time-performance':
-        from API_Service_Network.VariousInternalServices.OnTimePerformance import on_time_performance
-        return on_time_performance
-    elif service_name == 'tax-system-health':
-        from API_Service_Network.VariousInternalServices.TaxSystemHealth import tax_system_health
-        return tax_system_health
-    elif service_name == 'vendor-tracker':
-        from API_Service_Network.VariousInternalServices.VendorTracker import vendor_tracker
-        return vendor_tracker
-    elif service_name == 'wip-update':
-        from API_Service_Network.VariousInternalServices.WipUpdate import wip_update
-        return wip_update
-    return None
-
+# Instantiate data objects at module level
+services_config = ServicesConfig()
+services_log    = ServicesLog()
 
 SERVICE_DESCRIPTIONS = {
     'on-time-performance': 'Queries Fishbowl for order completion data and updates the On-Time Performance Google Sheet.',
@@ -42,129 +25,348 @@ SERVICE_DESCRIPTIONS = {
     'wip-update':          'Updates the WIP Tracker Google Sheet with current work-in-progress data from Fishbowl.',
 }
 
-# ---------------------------------- Scheduler --------------------------------------- #
+# ============================================================================
+# Helper functions
+# ============================================================================
 
-scheduler = BackgroundScheduler()
-scheduler.start()
+def _maybe_notify(cfg: dict, success: bool, log_data: dict) -> None:
+    mode       = cfg.get('notify_mode', 'none')
+    recipients = cfg.get('notify_recipients', [])
+    if not recipients or mode == 'none':
+        return
+    if mode == 'failure' and success:
+        return
+
+    label        = cfg.get('label', 'Service')
+    status_word  = 'Success' if success else 'Error'
+    status_color = '#166534' if success else '#991b1b'
+    status_bg    = '#dcfce7' if success else '#fee2e2'
+
+    log_rows = ''
+    for func, messages in log_data.items():
+        log_rows += (
+            f'<tr><td style="font-weight:bold;padding:4px 8px;vertical-align:top;">{func}</td>'
+            f'<td style="padding:4px 8px;">' + '<br>'.join(str(m) for m in messages) + '</td></tr>'
+        )
+
+    html_body = f"""
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;">
+        <h2 style="color:#1e40af;">Internal Services — {label}</h2>
+        <p>
+            <span style="background:{status_bg};color:{status_color};padding:4px 12px;
+                         border-radius:9999px;font-weight:bold;font-size:13px;">
+                {status_word}
+            </span>
+            &nbsp; Run completed at {datetime.now().strftime('%Y-%m-%d %H:%M')}
+        </p>
+        <table style="border-collapse:collapse;width:100%;font-size:13px;margin-top:12px;">
+            {log_rows}
+        </table>
+        <p style="color:#6b7280;font-size:12px;margin-top:16px;">
+            This is an automated notification from Internal Services.
+        </p>
+    </div>
+    """
+    try:
+        send_email(
+            subject=f'[Internal Services] {label} — {status_word}',
+            html_body=html_body,
+            recipients=recipients,
+            sender=Config.SENDER_EMAIL,
+        )
+    except Exception as e:
+        logger.error(f'Notification email failed for {label}: {e}')
+
+# ============================================================================
+# Per-service runner functions
+# Called directly by APScheduler and by Run Now routes (via a thread).
+# Mirrors retail.py calling sync_manager.determine_sync() from both contexts.
+# To add custom kwargs for a service, add them to the service function call below.
+# ============================================================================
 
 
-def _run_service_background(service_name: str):
-    """Runs a service in a background thread and saves the result."""
-    config = load_services_config()
-    config[service_name]['running'] = True
-    save_services_config(config)
+def run_on_time_performance(triggered_by:str='scheduler') -> None:
+    services_config.set_running('on-time-performance', True)
+    try:
+        from API_Service_Network.VariousInternalServices.scripts.OnTimePerformance import on_time_performance
+        log_obj  = on_time_performance(result_recipients=[], custom_headers=None)
+        success  = log_obj.error_flag() == 0
+        log_data = log_obj.get_log()
+    except Exception as e:
+        success, log_data = False, {'error': [str(e)]}
+        logger.error(f'on-time-performance failed: {e}')
+    services_config.save_result('on-time-performance', success)
+    services_log.append_run('on-time-performance', 'success' if success else 'error', triggered_by, log_data)
+    _maybe_notify(services_config.get('on-time-performance'), success, log_data)
+
+# WORKING AND COMPLETED
+def run_tax_system_health(triggered_by:str='scheduler') -> None:
+    services_config.set_running('tax-system-health', True)
+    config = services_config.get('tax-system-health')
+    notify_recipients = config['notify_recipients']
+    notify_mode = config['notify_mode']
 
     try:
-        func = _get_service_func(service_name)
-        if func is None:
-            raise ValueError(f"Unknown service: {service_name}")
-
-        log_obj = func(result_recipients=[])
-        success = log_obj.error_flag() == 0
+        from API_Service_Network.VariousInternalServices.scripts.TaxSystemHealth import tax_system_health
+        log_obj  = tax_system_health(result_recipients=notify_recipients, notification_mode=notify_mode)
+        success  = log_obj.error_flag() == 0
         log_data = log_obj.get_log()
-
     except Exception as e:
-        success = False
-        log_data = {'error': [str(e)]}
-        logger.error(f"Service {service_name} failed: {e}")
+        success, log_data = False, {'error': [str(e)]}
+        logger.error(f'tax-system-health failed: {e}')
 
-    config = load_services_config()
-    config[service_name]['running'] = False
-    config[service_name]['last_run'] = datetime.now().isoformat()
-    config[service_name]['last_status'] = 'success' if success else 'error'
-    config[service_name]['last_log'] = log_data
-    save_services_config(config)
+    services_config.save_result('tax-system-health', success)
+    services_log.append_run('tax-system-health', 'success' if success else 'error', triggered_by, log_data)
+
+# WORKING AND COMPLETED
+def run_vendor_tracker(triggered_by:str='scheduler') -> None:
+    services_config.set_running('vendor-tracker', True)
+    config = services_config.get('vendor-tracker')
+    notify_recipients = config['notify_recipients']
+    notify_mode = config['notify_mode']
+
+    try:
+        from API_Service_Network.VariousInternalServices.scripts.VendorTracker import vendor_tracker
+        log_obj  = vendor_tracker(result_recipients=notify_recipients, notification_mode=notify_mode)
+        success  = log_obj.error_flag() == 0
+        log_data = log_obj.get_log()
+    except Exception as e:
+        success, log_data = False, {'error': [str(e)]}
+        logger.error(f'vendor-tracker failed: {e}')
+    services_config.save_result('vendor-tracker', success)
+    services_log.append_run('vendor-tracker', 'success' if success else 'error', triggered_by, log_data)
 
 
-def schedule_service(service_name: str, interval_minutes: int):
-    """Adds or replaces a scheduled job for the given service."""
-    job_id = f'service_{service_name}'
+def run_wip_update(triggered_by:str='scheduler') -> None:
+    services_config.set_running('wip-update', True)
+    try:
+        from API_Service_Network.VariousInternalServices.scripts.WipUpdate import wip_update
+        log_obj  = wip_update(result_recipients=[])
+        success  = log_obj.error_flag() == 0
+        log_data = log_obj.get_log()
+    except Exception as e:
+        success, log_data = False, {'error': [str(e)]}
+        logger.error(f'wip-update failed: {e}')
+    services_config.save_result('wip-update', success)
+    services_log.append_run('wip-update', 'success' if success else 'error', triggered_by, log_data)
+    _maybe_notify(services_config.get('wip-update'), success, log_data)
+
+# Maps service name → runner. Used by the scheduler on startup and by the
+# generic /config route when rescheduling after a settings change.
+_RUNNERS = {
+    'on-time-performance': run_on_time_performance,
+    'tax-system-health':   run_tax_system_health,
+    'vendor-tracker':      run_vendor_tracker,
+    'wip-update':          run_wip_update,
+}
+
+# ============================================================================
+# Scheduler
+# ============================================================================
+
+scheduler = BackgroundScheduler()
+
+
+def _schedule(service_name: str, cfg: dict) -> None:
+    """Add or replace the APScheduler job for a service. No-op if not enabled."""
+    runner = _RUNNERS.get(service_name)
+    if not runner:
+        return
+
+    job_id = f'job_{service_name}'
     if scheduler.get_job(job_id):
         scheduler.remove_job(job_id)
-    scheduler.add_job(
-        func=_run_service_background,
-        args=[service_name],
-        trigger='interval',
-        minutes=interval_minutes,
-        id=job_id,
-        replace_existing=True
-    )
-    logger.info(f"Scheduled {service_name} every {interval_minutes} minutes")
+
+    if not cfg.get('enabled'):
+        return
+
+    if cfg.get('schedule_type') == 'cron' and cfg.get('schedule_cron'):
+        scheduler.add_job(
+            func=runner,
+            trigger='cron',
+            id=job_id,
+            replace_existing=True,
+            **cfg['schedule_cron'],
+        )
+    else:
+        # Anchor interval to last_run so a server restart doesn't reset the clock.
+        start_date = None
+        if cfg.get('last_run'):
+            try:
+                start_date = datetime.fromisoformat(cfg['last_run'])
+            except (ValueError, TypeError):
+                pass
+        scheduler.add_job(
+            func=runner,
+            trigger='interval',
+            minutes=cfg.get('schedule_interval_minutes', 1440),
+            start_date=start_date,
+            id=job_id,
+            replace_existing=True,
+        )
+    logger.info(f"Scheduled {service_name} (type={cfg.get('schedule_type', 'interval')})")
 
 
-def unschedule_service(service_name: str):
-    job_id = f'service_{service_name}'
+def _unschedule(service_name: str) -> None:
+    job_id = f'job_{service_name}'
     if scheduler.get_job(job_id):
         scheduler.remove_job(job_id)
 
 
-# On startup, schedule any services that were enabled
-_startup_config = load_services_config()
-for _name, _cfg in _startup_config.items():
+# On startup, restore schedules for any enabled services.
+for _name, _cfg in services_config.get_all().items():
     if _cfg.get('enabled'):
-        schedule_service(_name, _cfg.get('schedule_interval_minutes', 1440))
+        _schedule(_name, _cfg)
 
-# ------------------------------------ Routes ---------------------------------------- #
+# Start scheduler only in the correct process (mirrors retail.py guard):
+#   WERKZEUG_RUN_MAIN='true' → Werkzeug worker child (dev mode)
+#   PRODUCTION='1'           → waitress production run (set in serve.py)
+if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or os.environ.get('PRODUCTION') == '1':
+    scheduler.start()
+
+
+# ============================================================================
+# Routes — page
+# ============================================================================
 
 @services_bp.route('/')
 @access_required('services')
 def index():
-    config = load_services_config()
+    config = services_config.get_all()
     return render_template('services/index.html', services=config, descriptions=SERVICE_DESCRIPTIONS)
 
 
-@services_bp.route('/run/<service_name>', methods=['POST'])
+# ============================================================================
+# Routes — per-service Run Now
+# Thin HTTP wrappers — start the runner in a background thread and return JSON.
+# ============================================================================
+
+def _start_thread(service_name: str, runner) -> tuple:
+    """Guard + thread spin-up shared by all Run Now routes."""
+    cfg = services_config.get(service_name)
+    if not cfg:
+        return False, 'Unknown service', 404
+    if cfg.get('running'):
+        return False, 'Service is already running', 409
+    threading.Thread(target=runner, kwargs={'triggered_by': 'manual'}, daemon=True).start()
+    return True, cfg['label'], 200
+
+
+@services_bp.route('/run/on-time-performance', methods=['POST'])
 @login_required
-def run_service(service_name):
-    config = load_services_config()
-    if service_name not in config:
-        return jsonify({'error': 'Unknown service'}), 404
+def route_run_on_time_performance():
+    ok, msg, code = _start_thread('on-time-performance', run_on_time_performance)
+    if not ok:
+        return jsonify({'error': msg}), code
+    return jsonify({'success': True, 'message': f'{msg} started'})
 
-    if config[service_name].get('running'):
-        return jsonify({'error': 'Service is already running'}), 409
 
-    thread = threading.Thread(target=_run_service_background, args=[service_name], daemon=True)
-    thread.start()
+@services_bp.route('/run/tax-system-health', methods=['POST'])
+@login_required
+def route_run_tax_system_health():
+    ok, msg, code = _start_thread('tax-system-health', run_tax_system_health)
+    if not ok:
+        return jsonify({'error': msg}), code
+    return jsonify({'success': True, 'message': f'{msg} started'})
 
-    return jsonify({'success': True, 'message': f'{config[service_name]["label"]} started'})
 
+@services_bp.route('/run/vendor-tracker', methods=['POST'])
+@login_required
+def route_run_vendor_tracker():
+    ok, msg, code = _start_thread('vendor-tracker', run_vendor_tracker)
+    if not ok:
+        return jsonify({'error': msg}), code
+    return jsonify({'success': True, 'message': f'{msg} started'})
+
+
+@services_bp.route('/run/wip-update', methods=['POST'])
+@login_required
+def route_run_wip_update():
+    ok, msg, code = _start_thread('wip-update', run_wip_update)
+    if not ok:
+        return jsonify({'error': msg}), code
+    return jsonify({'success': True, 'message': f'{msg} started'})
+
+
+# ============================================================================
+# Routes — status, logs, config
+# ============================================================================
 
 @services_bp.route('/status', methods=['GET'])
 @login_required
 def get_status():
-    config = load_services_config()
+    config = services_config.get_all()
+    for name, cfg in config.items():
+        job = scheduler.get_job(f'job_{name}')
+        cfg['next_run'] = job.next_run_time.isoformat() if job and job.next_run_time else None
     return jsonify({'success': True, 'services': config})
+
+
+@services_bp.route('/logs/<service_name>', methods=['GET'])
+@login_required
+def get_service_log(service_name):
+    if service_name not in _RUNNERS:
+        return jsonify({'error': 'Unknown service'}), 404
+    return jsonify({'success': True, 'data': services_log.get_logs(service_name)})
+
+
+@services_bp.route('/logs/<service_name>', methods=['DELETE'])
+@login_required
+def clear_service_log(service_name):
+    if service_name not in _RUNNERS:
+        return jsonify({'error': 'Unknown service'}), 404
+    count = services_log.clear_logs(service_name)
+    return jsonify({'success': True, 'cleared': count})
+
+
+@services_bp.route('/logs/<service_name>/errors', methods=['DELETE'])
+@login_required
+def clear_service_errors(service_name):
+    if service_name not in _RUNNERS:
+        return jsonify({'error': 'Unknown service'}), 404
+    count = services_log.clear_errors(service_name)
+    return jsonify({'success': True, 'cleared': count})
 
 
 @services_bp.route('/config/<service_name>', methods=['PUT'])
 @login_required
 def update_service_config(service_name):
     try:
-        config = load_services_config()
-        if service_name not in config:
+        if service_name not in _RUNNERS:
             return jsonify({'error': 'Unknown service'}), 404
 
         req_data = request.get_json()
+        updates  = {}
 
+        # --- Schedule fields ---
+        if 'schedule_type' in req_data:
+            updates['schedule_type'] = req_data['schedule_type']
         if 'schedule_interval_minutes' in req_data:
             interval = int(req_data['schedule_interval_minutes'])
             if interval < 1:
                 return jsonify({'error': 'Interval must be at least 1 minute'}), 400
-            config[service_name]['schedule_interval_minutes'] = interval
-
+            updates['schedule_interval_minutes'] = interval
+        if 'schedule_cron' in req_data:
+            updates['schedule_cron'] = req_data['schedule_cron']
         if 'enabled' in req_data:
-            config[service_name]['enabled'] = bool(req_data['enabled'])
+            updates['enabled'] = bool(req_data['enabled'])
 
-        save_services_config(config)
+        # --- Notification fields ---
+        if 'notify_mode' in req_data:
+            if req_data['notify_mode'] not in ('none', 'always', 'failure'):
+                return jsonify({'error': 'Invalid notify_mode'}), 400
+            updates['notify_mode'] = req_data['notify_mode']
+        if 'notify_recipients' in req_data:
+            updates['notify_recipients'] = list(req_data['notify_recipients'])
 
-        # Reschedule based on new settings
-        if config[service_name]['enabled']:
-            schedule_service(service_name, config[service_name]['schedule_interval_minutes'])
-        else:
-            unschedule_service(service_name)
+        updated = services_config.update(service_name, updates)
+        _schedule(service_name, updated)
 
-        return jsonify({'success': True, 'config': config[service_name]})
+        job = scheduler.get_job(f'job_{service_name}')
+        updated['next_run'] = job.next_run_time.isoformat() if job and job.next_run_time else None
+
+        return jsonify({'success': True, 'config': updated})
 
     except Exception as e:
-        logger.error(f"Error updating service config: {e}")
+        logger.error(f'Error updating config for {service_name}: {e}')
         return jsonify({'error': str(e)}), 500
