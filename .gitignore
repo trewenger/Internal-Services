@@ -38,6 +38,9 @@ API_Service_network/RetailInventoryManager/data.json
 #            Various Automations and Internal Services
 API_Service_network/VariousInternalServices/Outputs/*
 API_Service_network/VariousInternalServices/Queries/*
+API_Service_network/VariousInternalServices/scripts/Outputs
+API_Service_network/VariousInternalServices/services_config.json
+API_Service_network/VariousInternalServices/services_log.json
 
 # other:
 readme.txt

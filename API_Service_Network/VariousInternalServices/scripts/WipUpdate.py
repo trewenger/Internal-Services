@@ -1,12 +1,16 @@
 """
 script dosctring:
 
+This script performs several operations to update the internal WIP Tracker sheet. 
+It updates several columns and imports updated data for back order reports, 
+6 month shipped reports, and last week shipped reports. These reports are pulled
+from Fishbowl. This script also saves both the current and previous data as CSV files 
+for potential troubleshooting. 
+
+This report should not be ran more than once a week, preferably on Monday mornings.
 """
 
-import os
-from dotenv import load_dotenv
-load_dotenv()
-
+from config import Config
 from common.Clients.Google.GoogleSession import *
 from common.Clients.Fishbowl.FishbowlSession import FishbowlSession
 from common.Clients.Fishbowl.Queries import *
@@ -17,6 +21,7 @@ from datetime import datetime, timedelta
 import pandas, os
 
 # ----------------------------- Globals ------------------------------- #
+__all__ = ["wip_update"]
 WIP_TRACKER_ID = None
 SS = None
 REPO_ROOT = None
@@ -157,6 +162,9 @@ def _csv_export() -> None:
     Exports the current data to CSV folder. Retains the previous export. Only retains the most recent
     and the previous exports.
     """
+
+    os.makedirs(CSV_FOLDER, exist_ok=True)
+
     try:
         # CSV Names
         LOG.log("csv_export", "Setting file paths for CSV files based on current PC. ")
@@ -203,7 +211,7 @@ def _csv_export() -> None:
         framed.to_csv(f'{CSV_FOLDER}/bo_current.csv', index=False)
         LOG.log("csv_export", "Success. 3/3 CSV files exported with name '..._current'. ")
     except Exception as e:
-        LOG.log("csv_export", "Failed to export the most recent CSV files. CSV from two weeks ago was removed, and csv" \
+        LOG.log("csv_export", "Failed to export the most recent CSV files. CSV from two weeks ago was removed, and csv " \
         "export from last week was renamed '..._previous.csv'. ", True)
         LOG.log("csv_export", e, True)
 
@@ -324,7 +332,7 @@ def _is_date_format(value, fmt="%m/%d/%Y"):
 
 #----------------------------- Main --------------------------------------#
 
-def wip_update(email_recipients:list[str], last_week_ship_query_name:str='WipLastWeekShip', 
+def wip_update(result_recipients:list[str], notification_mode:str="none", last_week_ship_query_name:str='WipLastWeekShip', 
                six_month_ship_query_name:str='WipSixMonthShip', bo_query_name:str='WipBO'):
     """
     This script performs an update of the WIP Tracker Google Sheet. It also perists
@@ -333,8 +341,10 @@ def wip_update(email_recipients:list[str], last_week_ship_query_name:str='WipLas
     or customizable. Requires Fishbowl login params, an existing google sheet with a WIP_TRACKER_ID
     env variable, SMTP2GO/EmailApi creds, and predefined sql files in this directory.
     
-    :param email_recipients: REQ. A list of recipients to recieve the run summary email.
-    :type email_recipients: list[str]
+    :param result_recipients: List of email recipients for notification
+    :type result_recipients: list
+    :param notification_mode: 'none', 'failure' for abnormal/error run notifications, and 'always' for notification on every run
+    :type notification_mode: str
     :param last_week_ship_query_name: The name of the sql file to query shipped products from last week, default is WipLastWeekShip.
     :type last_week_ship_query_name: str
     :param six_month_ship_query_name: The name of the sql file to query shipped products over the last 6 months, default is WipSixMonthShip.
@@ -344,22 +354,27 @@ def wip_update(email_recipients:list[str], last_week_ship_query_name:str='WipLas
     """
 
     global WIP_TRACKER_ID, SS, REPO_ROOT, CSV_FOLDER, TODAY, LOG
-    WIP_TRACKER_ID = os.getenv('WIP_TRACKER_ID')
-    SS = GoogleSession(WIP_TRACKER_ID)
+    # path to save the csv output
     REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
-    CSV_FOLDER = os.path.join(REPO_ROOT, "Outputs")             # path to save the csv output
+    CSV_FOLDER = os.path.join(REPO_ROOT, "Outputs")             
+
+    WIP_TRACKER_ID = Config.WIP_TRACKER_SHEET_ID
+    SS = GoogleSession(WIP_TRACKER_ID)
     TODAY = (datetime.now()).strftime("%m/%d/%Y")
     LOG = SessionLog()
 
     if not WIP_TRACKER_ID:
-        print(f"""Missing Sheet ID: Please provide a WIP_TRACKER_ID variable in a .env file in this directory:
-              {os.path.join(REPO_ROOT, "VariousInternalServices")}""")
-        exit()
+        LOG.log("wip_update", "Missing Sheet ID: Please provide a WIP_TRACKER_SHEET_ID variable in a project config file", True)
+        return LOG
 
     # load the saved sql files
     last_week_ship_query = load_query(last_week_ship_query_name)
     six_month_ship_query = load_query(six_month_ship_query_name)
     bo_query = load_query(bo_query_name)
+
+    if not last_week_ship_query or not six_month_ship_query or not bo_query:
+        LOG.log("wip_update", f"Unable to find one or more of the required Fishbowl queries with these names:[{last_week_ship_query_name}, {six_month_ship_query}, {bo_query}]", True)
+        return LOG
 
     # Runs each function if there are no logged errors. 
     _get_fb_data(last_week_ship_query, six_month_ship_query, bo_query)
@@ -382,5 +397,10 @@ def wip_update(email_recipients:list[str], last_week_ship_query_name:str='WipLas
     if LOG.error_flag() == 0:
         _update_wip_date()
 
-    if email_recipients:
-        _summary_email(email_recipients)
+    if result_recipients and notification_mode != 'none':
+        if notification_mode == 'always':
+            _summary_email(result_recipients)
+        elif LOG.error_flag() == 1:
+            _summary_email(result_recipients)
+    
+    return LOG

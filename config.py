@@ -36,11 +36,22 @@ class Config:
     FISHBOWL_USERNAME = os.getenv('FISHBOWL_USERNAME', 'admin')
     FISHBOWL_PASSWORD = os.getenv('FISHBOWL_PASSWORD', 'password')
     FISHBOWL_COMPANY_NAME = os.getenv('FISHBOWL_COMPANY_NAME', 'company_name_here')
-    USE_TEST_DB = os.getenv('USE_TEST_DB', True) == "True"
+    USE_TEST_DB = os.getenv('USE_TEST_DB', "True") == "True"
 
     # Avalara settings
-    AVA_USERNAME=os.getenv('AVA_USERNAME', 'your-avalara-admin-login-username')
-    AVA_PW=os.getenv('AVA_PW', 'your-avalara-admin-login-pw')
-    AVA_SB_PW=os.getenv('AVA_SB_PW', 'your-avalara-sandbox-admin-login-pw')
-    AVA_COMPANY_ID=os.getenv('AVA_COMPANY_ID', 'your-avalara-company-id')
-    AVA_SB_COMPANY_ID=os.getenv('AVA_SB_COMPANY_ID', 'your-avalara-sandbox-company-id')
+    AVA_USERNAME = os.getenv('AVA_USERNAME', 'your-avalara-admin-login-username')
+    AVA_PW = os.getenv('AVA_PW', 'your-avalara-admin-login-pw')
+    AVA_SB_PW = os.getenv('AVA_SB_PW', 'your-avalara-sandbox-admin-login-pw')
+    AVA_COMPANY_ID = os.getenv('AVA_COMPANY_ID', 'your-avalara-company-id')
+    AVA_SB_COMPANY_ID = os.getenv('AVA_SB_COMPANY_ID', 'your-avalara-sandbox-company-id')
+    
+    # Google Services
+    GOOGLE_SERVICE_SCOPES = os.getenv('GOOGLE_SERVICE_SCOPES', 'service-scopes-here')
+    GOOGLE_CREDENTIALS_PATH = os.getenv('GOOGLE_CREDENTIALS_PATH', 'json-cred-file-path')
+    
+    # Various Google Sheet IDs and URLs
+    VENDOR_TRACKER_SHEET_ID = os.getenv('VENDOR_TRACKER_SHEET_ID', 'sheet-id-here')
+    WIP_TRACKER_SHEET_ID = os.getenv('WIP_TRACKER_SHEET_ID', 'sheet-id-here')
+    ON_TIME_PERFORMANCE_SHEET_ID = os.getenv('ON_TIME_PERFORMANCE_SHEET_ID', 'sheet-id-here')
+    ON_TIME_PERFORMANCE_SHEET_URL = os.getenv('ON_TIME_PERFORMANCE_SHEET_URL', 'full-sheet-url-here')
+    

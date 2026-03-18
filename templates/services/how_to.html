@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}How To Guide - Various Services{% endblock %}
+
+{% block content %}
+<div class="min-h-screen p-6 bg-gray-100">
+    <div class="max-w-5xl mx-auto">
+
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">How To Guide</h1>
+                    <p class="text-gray-600 mt-1">Learn how to use Various Services</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('services.index') }}"
+                       class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition">
+                        Back to App
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table of Contents -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+            <h2 class="text-xl font-bold text-blue-900 mb-4">Table of Contents</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-blue-700">
+                <a href="#overview" class="hover:underline">1. System Overview</a>
+                <a href="#services" class="hover:underline">2. Available Services</a>
+                <a href="#running" class="hover:underline">3. Running a Service</a>
+                <a href="#scheduling" class="hover:underline">4. Scheduling</a>
+                <a href="#notifications" class="hover:underline">5. Notifications</a>
+                <a href="#logs" class="hover:underline">6. Logs & Run History</a>
+            </div>
+        </div>
+
+        <!-- 1. System Overview -->
+        <div id="overview" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">1. System Overview</h2>
+            <p class="text-gray-700 mb-3">
+                Various Services is a dashboard for running and scheduling internal automation scripts. Each service
+                may connect tp Fishbowl, Google Sheets, Microsoft Apps, or Avalara to pull data, run checks, and push updates automatically
+                on a configurable schedule.
+            </p>
+            <div class="bg-gray-50 border rounded p-4">
+                <h3 class="font-semibold text-gray-800 mb-2">Key Features:</h3>
+                <ul class="list-disc list-inside text-gray-700 space-y-1">
+                    <li>One-click manual runs from the dashboard</li>
+                    <li>Flexible scheduling: interval, daily, weekly, or custom cron</li>
+                    <li>Per-service email notifications on success, failure, or both</li>
+                    <li>Separate error and audit log panels per service</li>
+                    <li>Live status badges and next-run times</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 2. Available Services -->
+        <div id="services" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">2. Available Services</h2>
+
+            <div class="space-y-4">
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-blue-600 mb-1">On-Time Performance</h3>
+                    <p class="text-gray-700">Queries Fishbowl for order completion data and updates the On-Time Performance Google Sheet.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-blue-600 mb-1">Tax System Health</h3>
+                    <p class="text-gray-700">Checks Fishbowl for tax compliance issues — specifically product tax codes and customer exempt statuses.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-blue-600 mb-1">Vendor Tracker</h3>
+                    <p class="text-gray-700">Finds parts currently at vendor via Fishbowl and updates the Vendor Tracker Google Sheet.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-blue-600 mb-1">WIP Update</h3>
+                    <p class="text-gray-700">Updates the WIP Tracker Google Sheet with current work-in-progress data from Fishbowl.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Running a Service -->
+        <div id="running" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">3. Running a Service</h2>
+            <p class="text-gray-700 mb-4">
+                Any service can be run immediately using the <span class="font-semibold text-green-600">▶ Run Now</span> button,
+                regardless of its schedule or whether scheduling is enabled.
+            </p>
+            <div class="space-y-3 mb-4">
+                <div class="flex items-start gap-3">
+                    <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+                    <p class="text-gray-700">Click <span class="font-semibold text-green-600">▶ Run Now</span> on the service card.</p>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+                    <p class="text-gray-700">The status badge changes to <span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">Running...</span> while the service executes.</p>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+                    <p class="text-gray-700">When complete, the badge updates to <span class="bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">Last run: Success</span> or <span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full">Last run: Error</span>.</p>
+                </div>
+            </div>
+            <div class="bg-yellow-50 border border-yellow-200 rounded p-4">
+                <span class="font-semibold">Note:</span> A service cannot be run again while it is already running. The Run Now button will be disabled until the current run completes.
+            </div>
+        </div>
+
+        <!-- 4. Scheduling -->
+        <div id="scheduling" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">4. Scheduling</h2>
+            <p class="text-gray-700 mb-4">
+                Open a service card and click the <span class="font-semibold">Schedule</span> tab to configure automatic runs.
+                Toggle <span class="font-semibold">Scheduled</span> on to reveal the scheduling options.
+            </p>
+
+            <div class="space-y-4">
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Every N Minutes</h3>
+                    <p class="text-gray-700">Runs the service repeatedly at a fixed minute interval. The interval is anchored to the last run time, so restarting the server will not reset the clock.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Daily</h3>
+                    <p class="text-gray-700">Runs once per day at a chosen time. If the scheduled time is missed (e.g., server is down), the next run will be the following day at that time.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Weekly</h3>
+                    <p class="text-gray-700">Runs once per week on a chosen day and time.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Custom (Cron)</h3>
+                    <p class="text-gray-700">Enter a standard cron expression for full control over the schedule.
+                        Format: <code class="bg-gray-100 px-1 rounded text-sm">minute hour day month day_of_week</code>.
+                        Example: <code class="bg-gray-100 px-1 rounded text-sm">0 9 * * 1-5</code> = Mon–Fri at 9:00 AM.
+                    </p>
+                </div>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded p-4 mt-4">
+                <span class="font-semibold">Tip:</span> Click <span class="font-semibold">Save Schedule</span> after making any changes. The <span class="font-semibold">Next:</span> time in the card header will update immediately to confirm the new schedule was applied.
+            </div>
+        </div>
+
+        <!-- 5. Notifications -->
+        <div id="notifications" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">5. Notifications</h2>
+            <p class="text-gray-700 mb-4">
+                Open a service card and click the <span class="font-semibold">Notifications</span> tab to configure email alerts.
+            </p>
+
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Notify Me Options:</h3>
+                <ul class="space-y-2">
+                    <li class="flex items-start gap-2">
+                        <span class="font-semibold text-gray-700 w-32 shrink-0">Off</span>
+                        <span class="text-gray-700">No emails are sent.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="font-semibold text-gray-700 w-32 shrink-0">After every run</span>
+                        <span class="text-gray-700">An email is sent after every run, whether it succeeded or failed.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="font-semibold text-gray-700 w-32 shrink-0">On failures</span>
+                        <span class="text-gray-700">An email is only sent when a run encounters an error.</span>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Managing Recipients:</h3>
+                <p class="text-gray-700 mb-2">Add email addresses one at a time using the Recipients field and click <span class="font-semibold">+ Add</span> (or press Enter). Remove any recipient by clicking the <span class="font-semibold text-red-500">×</span> on their chip.</p>
+            </div>
+
+            <div class="bg-yellow-50 border border-yellow-200 rounded p-4">
+                <span class="font-semibold">Note:</span> Notification emails include the run status, timestamp, and a full log table so you can see exactly what the service did.
+            </div>
+        </div>
+
+        <!-- 6. Logs & Run History -->
+        <div id="logs" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">6. Logs &amp; Run History</h2>
+            <p class="text-gray-700 mb-4">
+                Open a service card and click the <span class="font-semibold">Logs</span> tab to view run history.
+                Two panels are shown: <span class="font-semibold text-red-600">Recent Errors</span> and <span class="font-semibold text-blue-600">Recent Logs</span>.
+            </p>
+
+            <div class="space-y-3 mb-4">
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-red-600 mb-1">Recent Errors</h3>
+                    <p class="text-gray-700">Shows only runs that encountered an error, including a breakdown of what failed. Up to 10 entries are kept.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-blue-600 mb-1">Recent Logs</h3>
+                    <p class="text-gray-700">Shows successful runs with the full log output from that run. Up to 10 entries are kept.</p>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Buttons:</h3>
+                <ul class="list-disc list-inside text-gray-700 space-y-1 ml-4">
+                    <li><span class="font-semibold text-green-600">Refresh</span> — reloads the log panel from the server.</li>
+                    <li><span class="font-semibold text-gray-600">Clear All</span> — permanently deletes the log history for that panel.</li>
+                </ul>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded p-4">
+                <span class="font-semibold">Tip:</span> Logs are loaded on demand when you open the Logs tab. Use Refresh if a run just completed and you want to see the latest entry.
+            </div>
+        </div>
+
+        <!-- Back button -->
+        <div class="text-center mb-6">
+            <a href="{{ url_for('services.index') }}"
+               class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition text-lg inline-block">
+                Back to App
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
