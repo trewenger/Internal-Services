@@ -40,7 +40,7 @@ function toggleCard(name) {
 
 function switchTab(name, tab) {
     _activeTab[name] = tab;
-    ['schedule', 'logs', 'notifications'].forEach(t => {
+    ['schedule', 'notifications', 'logs'].forEach(t => {
         const btn = document.getElementById(`tab-btn-${name}-${t}`);
         const panel = document.getElementById(`tab-panel-${name}-${t}`);
         const active = t === tab;
@@ -69,7 +69,6 @@ async function runService(name) {
 
         if (resp.ok && result.success) {
             btn.textContent = 'Running...';
-            showNotification(`${result.message}. Polling for results...`, 'info');
             pollStatus(name);
         } else {
             showNotification(result.error || 'Failed to start service', 'error');
@@ -161,6 +160,20 @@ function onScheduleTypeChange(name) {
     });
 }
 
+function selectScheduleType(name, type) {
+    document.getElementById(`schedule-type-${name}`).value = type;
+    ['interval', 'daily', 'weekly', 'custom'].forEach(t => {
+        const btn = document.getElementById(`sched-type-btn-${t}-${name}`);
+        if (!btn) return;
+        const active = t === type;
+        btn.classList.toggle('bg-blue-500', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('bg-white', !active);
+        btn.classList.toggle('text-gray-600', !active);
+    });
+    onScheduleTypeChange(name);
+}
+
 function saveSchedule(name) {
     const type = document.getElementById(`schedule-type-${name}`).value;
     const enabled = document.getElementById(`enabled-toggle-input-${name}`).checked;
@@ -222,7 +235,8 @@ function saveSchedule(name) {
 
 async function loadLogs(name) {
     if (_logsLoaded[name]) {
-        renderLogTab(name, _activeLogTab[name] || 'audit');
+        renderLogTab(name, 'audit');
+        renderLogTab(name, 'error');
         return;
     }
     const panel = document.getElementById(`log-loading-${name}`);
@@ -242,29 +256,13 @@ async function loadLogs(name) {
     }
 
     if (panel) panel.classList.add('hidden');
-    switchLogTab(name, _activeLogTab[name] || 'audit');
-}
-
-function switchLogTab(name, tab) {
-    _activeLogTab[name] = tab;
-    ['audit', 'error'].forEach(t => {
-        const btn = document.getElementById(`log-tab-btn-${name}-${t}`);
-        const panel = document.getElementById(`log-tab-panel-${name}-${t}`);
-        const active = t === tab;
-        btn.classList.toggle('border-blue-500', active);
-        btn.classList.toggle('text-blue-600', active);
-        btn.classList.toggle('font-semibold', active);
-        btn.classList.toggle('border-transparent', !active);
-        btn.classList.toggle('text-gray-500', !active);
-        panel.classList.toggle('hidden', !active);
-    });
-    renderLogTab(name, tab);
+    renderLogTab(name, 'audit');
+    renderLogTab(name, 'error');
 }
 
 function renderLogTab(name, tab) {
     const isAudit = tab === 'audit';
     const contentEl = document.getElementById(`log-entries-${name}-${isAudit ? 'audit' : 'error'}`);
-    const statsEl   = document.getElementById(`log-stats-${name}-${isAudit ? 'audit' : 'error'}`);
     if (!contentEl) return;
 
     const cached = _logsCache[name];
@@ -273,14 +271,10 @@ function renderLogTab(name, tab) {
     const entries = isAudit ? cached.logs.filter(e => e.status !== 'error') : cached.errors;
     const stats   = isAudit ? cached.log_stats : cached.error_stats;
 
-    // Stats line
-    if (statsEl) {
-        const total = isAudit ? stats.total_runs : stats.total_errors;
-        const last  = isAudit ? stats.last_run : stats.last_error;
-        statsEl.textContent = total
-            ? `${total} total · last ${formatDatetime(last)}`
-            : 'No records yet';
-    }
+    // Count badge
+    const badgeId = isAudit ? `log-count-badge-${name}` : `error-count-badge-${name}`;
+    const badgeEl = document.getElementById(badgeId);
+    if (badgeEl) badgeEl.textContent = entries ? entries.length : 0;
 
     if (!entries || entries.length === 0) {
         contentEl.innerHTML = '<p class="text-gray-400 text-sm italic">No records yet.</p>';
@@ -357,7 +351,8 @@ async function clearLogs(name, type) {
                 _logsCache[name].log_stats = { total_runs: 0, last_run: null };
             }
         }
-        renderLogTab(name, _activeLogTab[name] || 'audit');
+        renderLogTab(name, 'audit');
+        renderLogTab(name, 'error');
         showNotification('Logs cleared', 'success');
     } catch (e) {
         showNotification('Failed to clear logs', 'error');
@@ -366,8 +361,21 @@ async function clearLogs(name, type) {
 
 // --------------------------------- Notifications tab -------------------------------- //
 
+function selectNotifyMode(name, mode) {
+    document.getElementById(`notify-mode-${name}`).value = mode;
+    ['none', 'always', 'failure'].forEach(m => {
+        const btn = document.getElementById(`notify-mode-btn-${m}-${name}`);
+        if (!btn) return;
+        const active = m === mode;
+        btn.classList.toggle('bg-blue-500', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('bg-white', !active);
+        btn.classList.toggle('text-gray-600', !active);
+    });
+}
+
 function saveNotifications(name) {
-    const mode = document.querySelector(`input[name="notify-mode-${name}"]:checked`)?.value || 'none';
+    const mode = document.getElementById(`notify-mode-${name}`)?.value || 'none';
     const chips = document.querySelectorAll(`#recipient-chips-${name} [data-email]`);
     const recipients = Array.from(chips).map(c => c.dataset.email);
 
@@ -421,8 +429,14 @@ function _putConfig(name, payload, onSuccess) {
 
 function formatDatetime(iso) {
     if (!iso) return '—';
-    // Strip timezone info for display — show local naive datetime
-    return iso.substring(0, 19).replace('T', ' ');
+    const d = new Date(iso);
+    if (isNaN(d)) return iso.substring(0, 19).replace('T', ' ');
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Los_Angeles',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: 'numeric', minute: '2-digit',
+        hour12: true,
+    }).format(d).replace(',', '');
 }
 
 function escHtml(str) {

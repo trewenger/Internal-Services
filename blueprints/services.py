@@ -240,6 +240,12 @@ def index():
     return render_template('services/index.html', services=config, descriptions=SERVICE_DESCRIPTIONS)
 
 
+@services_bp.route('/how-to')
+@access_required('services')
+def how_to():
+    return render_template('services/how_to.html')
+
+
 # ============================================================================
 # Routes — per-service Run Now
 # Thin HTTP wrappers — start the runner in a background thread and return JSON.
