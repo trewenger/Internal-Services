@@ -47,3 +47,5 @@ readme.txt
 !API_Service_network/src/common/Clients/Google/README.txt
 API_Service_Network/Intuiflow/queries/*
 API_Service_Network/Intuiflow/.old_files
+API_Service_Network/VariousInternalServices/scripts/plan.md
+test.py

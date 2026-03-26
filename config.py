@@ -54,4 +54,16 @@ class Config:
     WIP_TRACKER_SHEET_ID = os.getenv('WIP_TRACKER_SHEET_ID', 'sheet-id-here')
     ON_TIME_PERFORMANCE_SHEET_ID = os.getenv('ON_TIME_PERFORMANCE_SHEET_ID', 'sheet-id-here')
     ON_TIME_PERFORMANCE_SHEET_URL = os.getenv('ON_TIME_PERFORMANCE_SHEET_URL', 'full-sheet-url-here')
-    
+
+    # Intuiflow settings
+    INTUIFLOW_PROD_ADDRESS = os.getenv('INTUIFLOW_PROD_ADDRESS', 'intuiflow-prod-url')
+    INTUIFLOW_PROD_TOKEN = os.getenv('INTUIFLOW_PROD_TOKEN', 'intuiflow-prod-token')
+    INTUIFLOW_TEST_ADDRESS = os.getenv('INTUIFLOW_TEST_ADDRESS', 'intuiflow-test-url')
+    INTUIFLOW_TEST_TOKEN = os.getenv('INTUIFLOW_TEST_TOKEN', 'intuiflow-test-token')
+    INTUIFLOW_USE_TEST = os.getenv('USE_TEST_DB', "True") == "True"
+    INTUIFLOW_ROPE_ITEMS_LOCATION = os.getenv('INTUIFLOW_ROPE_ITEMS_LOCATION', 'Radian Weapons')
+        # Fishbowl custom field IDs used when updating MOs (test and prod are separate DBs with different IDs)
+    FISHBOWL_TEST_CF_ROUTING_NAME_ID   = int(os.getenv('FISHBOWL_TEST_CF_ROUTING_NAME_ID',  0))
+    FISHBOWL_TEST_CF_DATE_SCHEDULED_ID = int(os.getenv('FISHBOWL_TEST_CF_DATE_SCHEDULED_ID', 0))
+    FISHBOWL_PROD_CF_ROUTING_NAME_ID   = int(os.getenv('FISHBOWL_PROD_CF_ROUTING_NAME_ID',  0))
+    FISHBOWL_PROD_CF_DATE_SCHEDULED_ID = int(os.getenv('FISHBOWL_PROD_CF_DATE_SCHEDULED_ID', 0))
