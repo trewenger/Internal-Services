@@ -62,8 +62,13 @@ class Config:
     INTUIFLOW_TEST_TOKEN = os.getenv('INTUIFLOW_TEST_TOKEN', 'intuiflow-test-token')
     INTUIFLOW_USE_TEST = os.getenv('USE_TEST_DB', "True") == "True"
     INTUIFLOW_ROPE_ITEMS_LOCATION = os.getenv('INTUIFLOW_ROPE_ITEMS_LOCATION', 'Radian Weapons')
-        # Fishbowl custom field IDs used when updating MOs (test and prod are separate DBs with different IDs)
-    FISHBOWL_TEST_CF_ROUTING_NAME_ID   = int(os.getenv('FISHBOWL_TEST_CF_ROUTING_NAME_ID',  0))
-    FISHBOWL_TEST_CF_DATE_SCHEDULED_ID = int(os.getenv('FISHBOWL_TEST_CF_DATE_SCHEDULED_ID', 0))
-    FISHBOWL_PROD_CF_ROUTING_NAME_ID   = int(os.getenv('FISHBOWL_PROD_CF_ROUTING_NAME_ID',  0))
-    FISHBOWL_PROD_CF_DATE_SCHEDULED_ID = int(os.getenv('FISHBOWL_PROD_CF_DATE_SCHEDULED_ID', 0))
+        # Fishbowl custom field IDs (test and prod are separate DBs with different IDs)
+    FISHBOWL_TEST_CF_MO_ROUTING_NAME_ID   = int(os.getenv('FISHBOWL_TEST_CF_MO_ROUTING_NAME_ID',   0))
+    FISHBOWL_TEST_CF_MO_DATE_SCHEDULED_ID = int(os.getenv('FISHBOWL_TEST_CF_MO_DATE_SCHEDULED_ID',  0))
+    FISHBOWL_TEST_CF_MO_LINK_CODE_ID      = int(os.getenv('FISHBOWL_TEST_CF_MO_LINK_CODE_ID',   0))
+    FISHBOWL_TEST_CF_PO_LINK_CODE_ID      = int(os.getenv('FISHBOWL_TEST_CF_PO_LINK_CODE_ID',   0))
+
+    FISHBOWL_PROD_CF_MO_ROUTING_NAME_ID   = int(os.getenv('FISHBOWL_PROD_CF_MO_ROUTING_NAME_ID',   0))
+    FISHBOWL_PROD_CF_MO_DATE_SCHEDULED_ID = int(os.getenv('FISHBOWL_PROD_CF_MO_DATE_SCHEDULED_ID',  0))
+    FISHBOWL_PROD_CF_MO_LINK_CODE_ID      = int(os.getenv('FISHBOWL_PROD_CF_MO_LINK_CODE_ID',   0))
+    FISHBOWL_PROD_CF_PO_LINK_CODE_ID      = int(os.getenv('FISHBOWL_PROD_CF_PO_LINK_CODE_ID',   0))

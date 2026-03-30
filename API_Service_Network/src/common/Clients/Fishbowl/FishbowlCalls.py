@@ -216,23 +216,41 @@ def fb_cycle_part_inventory(token:str, part_id:int, payload:dict, is_test_db:boo
     return {"status": response.status_code, "reason": response.reason}
 
 
-def fb_create_mo(token:str, data:json, is_test_db:bool = False) -> object:
-    """ 
-    TBD. Not currently functioning. Do not use. 
+def fb_create_mo(token:str, data:dict, is_test_db:bool = False) -> object:
     """
-    return
+    Creates a Fishbowl manufacture order with the provided payload.
+    Returns an object: {'status', 'reason', 'data'}
+    """
     fb_server_address = os.getenv("FISHBOWL_SERVER_ADDRESS")
     fb_port = os.getenv("FISHBOWL_TEST_PORT") if is_test_db else os.getenv("FISHBOWL_PROD_PORT")
-    url = f"http://{fb_server_address}:{fb_port}/api/import/Cycle-Count-Data"
+    url = f"http://{fb_server_address}:{fb_port}/api/manufacture-orders"
 
     headers = {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer ' + str(token)
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + str(token)
     }
 
-    # Py list to JSON string.
-    payload = json.dumps(data)
-    
-    response = requests.post(url, headers=headers, data=payload)
-    print("Response: ", response.status_code, response.reason)
-    return {"status":response.status_code, "reason":response.reason}
+    response = requests.post(url, headers=headers, data=json.dumps(data))
+    print("Create MO: ", response.status_code, response.reason)
+    data_out = json.loads(response.content) if response.content else None
+    return {"status": response.status_code, "reason": response.reason, "data": data_out}
+
+
+def fb_create_po(token:str, data:dict, is_test_db:bool = False) -> object:
+    """
+    Creates a Fishbowl purchase order with the provided payload.
+    Returns an object: {'status', 'reason', 'data'}
+    """
+    fb_server_address = os.getenv("FISHBOWL_SERVER_ADDRESS")
+    fb_port = os.getenv("FISHBOWL_TEST_PORT") if is_test_db else os.getenv("FISHBOWL_PROD_PORT")
+    url = f"http://{fb_server_address}:{fb_port}/api/purchase-orders"
+
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + str(token)
+    }
+
+    response = requests.post(url, headers=headers, data=json.dumps(data))
+    print("Create PO: ", response.status_code, response.reason)
+    data_out = json.loads(response.content) if response.content else None
+    return {"status": response.status_code, "reason": response.reason, "data": data_out}

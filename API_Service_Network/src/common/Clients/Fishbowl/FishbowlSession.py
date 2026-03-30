@@ -204,6 +204,38 @@ class FishbowlSession:
             raise CallFailure(f"Cycle inventory for part {part_id} failed: {result['status']} {result['reason']}")
 
 
+    def create_mo(self, data:dict) -> object:
+        """
+        Creates a manufacture order with the provided payload dict.
+        Raises CallFailure on non-2xx response.
+        """
+        if not self.is_logged_in():
+            raise Exception("Fishbowl session is logged out or inactive.")
+        result = fb_create_mo(self._token, data, self._is_test_db)
+        if result["status"] in (200, 201, 202, 203, 204):
+            self._call_count += 1
+            return result
+        else:
+            print(result["status"], result["reason"], result["data"])
+            raise CallFailure(f"Create MO failed: {result['status']} {result['reason']} - {result.get('data')}")
+
+
+    def create_po(self, data:dict) -> object:
+        """
+        Creates a purchase order with the provided payload dict.
+        Raises CallFailure on non-2xx response.
+        """
+        if not self.is_logged_in():
+            raise Exception("Fishbowl session is logged out or inactive.")
+        result = fb_create_po(self._token, data, self._is_test_db)
+        if result["status"] in (200, 201, 202, 203, 204):
+            self._call_count += 1
+            return result
+        else:
+            print(result["status"], result["reason"], result["data"])
+            raise CallFailure(f"Create PO failed: {result['status']} {result['reason']} - {result.get('data')}")
+
+
     def cycle_inventory(self, data) -> object:
         """
         Bulk cycles inventory into fishbowl using the Cycle Count Import method. 

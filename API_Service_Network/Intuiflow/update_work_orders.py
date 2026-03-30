@@ -31,8 +31,8 @@ def _build_timestamp() -> str:
 
 def _build_update_payload(order: dict, timestamp: str, is_test_db: bool) -> dict:
     """Builds the Fishbowl Update MO POST request payload from a merged order dict."""
-    cf_routing_id = (Config.FISHBOWL_TEST_CF_ROUTING_NAME_ID if is_test_db else Config.FISHBOWL_PROD_CF_ROUTING_NAME_ID)
-    cf_date_id    = (Config.FISHBOWL_TEST_CF_DATE_SCHEDULED_ID if is_test_db else Config.FISHBOWL_PROD_CF_DATE_SCHEDULED_ID)
+    cf_routing_id = (Config.FISHBOWL_TEST_CF_MO_ROUTING_NAME_ID if is_test_db else Config.FISHBOWL_PROD_CF_MO_ROUTING_NAME_ID)
+    cf_date_id    = (Config.FISHBOWL_TEST_CF_MO_DATE_SCHEDULED_ID if is_test_db else Config.FISHBOWL_PROD_CF_MO_DATE_SCHEDULED_ID)
     routing_name  = str(order.get("RoutingName", "")).replace('"', '\\"')
     qty_val       = order.get("Qty")
     qty           = float(qty_val) if qty_val not in (None, "NA") else 0.0

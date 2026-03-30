@@ -137,9 +137,7 @@ def committ_pending_orders(order_ids:list, is_test_environment:bool=INTUIFLOW_US
         "api_key": token
     }
 
-    payload = json.dumps([
-        # list of order ids
-    ])
+    payload = json.dumps(order_ids)
 
     response = requests.post(url=url, headers=headers, data=payload)
     if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
