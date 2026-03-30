@@ -6,7 +6,6 @@ from common.Clients.Intuiflow.IntuiflowApi import (
 from common.Utils.Logging import SessionLog
 from common.Utils.Utils import load_query
 from datetime import datetime
-from pprint import pprint
 
 # ── Private helpers ───────────────────────────────────────────────────────────
 
@@ -23,7 +22,7 @@ def _build_timestamp() -> str:
 def _build_mo_payload(order: dict, timestamp: str, is_test_db: bool) -> dict:
     """Builds the Fishbowl Create MO POST payload from an enriched WO dict."""
     cf_link_id    = Config.FISHBOWL_TEST_CF_MO_LINK_CODE_ID if is_test_db else Config.FISHBOWL_PROD_CF_MO_LINK_CODE_ID
-    cf_routing_id = Config.FISHBOWL_TEST_CF_MO_ROUTING_NAME_ID if is_test_db else Config.FISHBOWL_TEST_CF_MO_ROUTING_NAME_ID
+    cf_routing_id = Config.FISHBOWL_TEST_CF_MO_ROUTING_NAME_ID if is_test_db else Config.FISHBOWL_PROD_CF_MO_ROUTING_NAME_ID
     cf_date_id    = Config.FISHBOWL_TEST_CF_MO_DATE_SCHEDULED_ID if is_test_db else Config.FISHBOWL_PROD_CF_MO_DATE_SCHEDULED_ID
 
     return {
@@ -374,7 +373,7 @@ class ImportPendingOrders:
                                      f"Warning: Could not find part info for outsourced PO {po['OrderId']} "
                                      f"(part {po['PartNumber']} and/or child {po.get('ChildPartNum')}). Skipping import.", True)
 
-                # outsourced PO list hydration second
+                # purchased PO list hydration second
                 enriched_purchase = []
                 for po in self._purchase_pos:
                     part = parts_by_num.get(str(po["PartNumber"]))
@@ -559,28 +558,12 @@ class ImportPendingOrders:
         try:
             # fetch and split approved pending orders from Intuiflow (WOs and POs)
             self._get_pending_orders()
-            testing = input("Continue (Y/N): ")
-            if testing == "N":
-                exit()
-            print()
             # classify POs and fill in WO routing names using Intuiflow BoM/routing data
             self._enrich_orders_intuiflow()
-            testing = input("Continue (Y/N): ")
-            if testing == "N":
-                exit()
-            print()
             # attach BoM IDs (WOs) and part/vendor info (POs) from Fishbowl
             self._enrich_orders_fishbowl()
-            testing = input("Continue (Y/N): ")
-            if testing == "N":
-                exit()
-            print()
             # create MOs and POs in Fishbowl, collecting IDs to commit
             self._import_to_fishbowl()
-            testing = input("Continue (Y/N): ")
-            if testing == "N":
-                exit()
-            print()
             # commit successfully imported orders in Intuiflow
             self._commit_orders()
         except Exception as e:
