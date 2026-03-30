@@ -72,11 +72,12 @@ def delete_import(import_id:int, is_test_environment:bool=INTUIFLOW_USE_TEST) ->
         raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
     return {"status":response.status_code, "reason":response.reason}
 
-def create_import_item(import_id:int, data:list, is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
+def create_import_item(import_id:int, data:list, item_type:str, 
+                       is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
     """   """
     base_url = INTUIFLOW_TEST_ADDRESS if is_test_environment else INTUIFLOW_PROD_ADDRESS
     token = INTUIFLOW_TEST_TOKEN if is_test_environment else INTUIFLOW_PROD_TOKEN
-    url = f"{base_url}/api/v2/import/{import_id}/item?type=BillOfMaterial"
+    url = f"{base_url}/api/v2/import/{import_id}/item?type={item_type}"
 
     headers = {
         "Content-Type": "application/json",
