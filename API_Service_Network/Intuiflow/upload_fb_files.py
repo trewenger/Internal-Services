@@ -40,8 +40,8 @@ class UploadFbFiles:
         """Validates Intuiflow import response items against expected file record counts.
 
         expected_files: {intuiflow_type_str: record_count}
-        Returns True if all items pass (partial records-ignored is a warning, not a failure).
-        Returns False if any item has 0 processed records or an unrecognized file name.
+        Returns True if all items pass.
+        Returns False if any item has an unrecognized file name.
         """
         if not response_items:
             self.log.log(context, "Validation response contained no Items.", True)
@@ -55,6 +55,7 @@ class UploadFbFiles:
             ignored      = item.get("IgnoredCount", 0)
             val_msgs     = list({m for m in (item.get("ValidationResults") or [])})
             parse_msgs   = list({m for m in (item.get("ParsingErrors")     or [])})
+            count_msg    = len(item.get("ParsingErrors") or []) + len(item.get("ValidationResults") or [])
 
             if file_name not in expected_files:
                 self.log.log(context, f"Validation returned unrecognized file name: '{file_name}'.", True)
@@ -76,8 +77,16 @@ class UploadFbFiles:
                 self.log.log(context,
                         f"Warning: Validated {processed} of {record_count} records for {file_name} "
                         f"({ignored} records ignored). Messages: {val_msgs + parse_msgs}", True)
+                all_passed = False
             else:
-                self.log.log(context, f"Successfully validated {processed} of {expected_count} for {file_name}.")
+                self.log.log(context, 
+                             f"Successfully validated {processed} of {expected_count} records for {file_name} "
+                             f"with {count_msg} total warning messages. All records will be imported.")
+                tot_msg = val_msgs + parse_msgs
+                if tot_msg:
+                    self.log.log(context, 
+                                 f"Warning: All records will be imported but there are {count_msg} records "
+                                 f"with one the following non-critical warnings messages: {tot_msg}.", True)
 
         return all_passed
 
@@ -93,14 +102,18 @@ class UploadFbFiles:
 
             self.log.log("_query_fishbowl", "Successfully logged into Fishbowl.", auto_print=False)
 
+
             # simple helper function to avoid duplicate FB query logic
             def _run(label, sql, mode):
                 rows = fb.query(sql)["data"] or []      # auto raises CallFailure on call failure
                 if not rows:
-                    self.log.log("_query_fishbowl", f"Warning: {label} query returned 0 records.", True)
+                    self.log.log(f"_query_fishbowl: {label}", 
+                                 f"Warning: {label} query returned 0 records and will not be imported.", True)
                     return None
-                self.log.log("_query_fishbowl", f"{label} query returned {len(rows)} records.", auto_print=False)
+                self.log.log(f"_query_fishbowl: {label}", 
+                             f"{label} query returned {len(rows)} records.", auto_print=False)
                 return {"Data": rows, "Mode": mode, "RecordCount": len(rows)}
+
 
             self._demand_history = _run("DemandHistory",   self._sql_demand_history, "Update")
             self._part           = _run("Part",            self._sql_part,           "Update")
@@ -133,17 +146,17 @@ class UploadFbFiles:
         create → upload item → validate → run → delete (always in finally).
         Errors are logged but the exception is swallowed — per-file failures are non-fatal. """
         import_id = None
+        upload_type = None
         try:
             # ---------------------- create import ----------------
             # auto raises CallFailure on API call failure
-            resp = create_import(file_data["Mode"], is_test_environment=self._is_intuiflow_test)
+            upload_type = file_data["Mode"]
+            resp = create_import(upload_type, is_test_environment=self._is_intuiflow_test)
             import_id = (resp.get("data") or {}).get("Id")
             if import_id is None:
                 raise Exception(f"Create import returned no ID for {file_name}. Ending call stack.")
 
-            pprint(resp.get("data"))
-            print()
-            self.log.log(f"_upload_standalone:{file_name}", 
+            self.log.log(f"_upload_standalone: {upload_type} - {file_name}", 
                          f"Successfully created new Intuiflow import with ID: {import_id}.")
 
             # ---------------------- upload item ------------------
@@ -154,12 +167,11 @@ class UploadFbFiles:
                               if i.get("Status") == "Identified"
                               and (i.get("FileName") == file_name
                                    or i.get("Type")     == file_name)), None)
-            pprint(resp.get("data"))
-            print()
+
             if not confirmed:
                 raise Exception(f"Upload item did not confirm 'Identified' status for {file_name}. Ending call stack.")
 
-            self.log.log(f"_upload_standalone:{file_name}", 
+            self.log.log(f"_upload_standalone: {upload_type} - {file_name}", 
                          f"Successfully uploaded the import item/file to import ID: {import_id}.")
 
             # ------------------------ validate -------------------
@@ -167,31 +179,29 @@ class UploadFbFiles:
             items = (resp.get("data") or {}).get("Items") or []
             
             passed = self._check_validation_results(items, {file_name: file_data["RecordCount"]},
-                                            f"_upload_standalone:{file_name}")
+                                            f"_upload_standalone: {upload_type} - {file_name}")
             
             if not passed:
-                raise Exception(f"Validation failed for {file_name}. Import will not run.")
-
-            pprint(resp.get("data"))
-            print()
+                raise Exception(f"Validation failed for {file_name}. Ending the call stack.")
 
             # -------------------------- run ----------------------
             run_import(import_id, is_test_environment=self._is_intuiflow_test)
-            self.log.log(f"_upload_standalone:{file_name}",
+            self.log.log(f"_upload_standalone: {upload_type} - {file_name}", 
                          f"Successfully imported {file_name} with {file_data['RecordCount']} records.")
-
+            import_id = None
         except Exception as e:
-            self.log.log(f"_upload_standalone:{file_name}", f"Error: {e}", True)
+            self.log.log(f"_upload_standalone: {upload_type} - {file_name}", 
+                        f"Error: {e}", True)
             raise
         finally:
             # if critical failure after creating the import, attempt to delete it
             if import_id is not None:
                 try:
                     delete_import(import_id, is_test_environment=self._is_intuiflow_test)
-                    self.log.log(f"_upload_standalone:{file_name}",
+                    self.log.log(f"_upload_standalone: {upload_type} - {file_name}", 
                                  f"Successfully deleted the import with ID: {import_id}.")
                 except Exception as de:
-                    self.log.log(f"_upload_standalone:{file_name}",
+                    self.log.log(f"_upload_standalone: {upload_type} - {file_name}", 
                                  f"Failed to delete failed import with ID {import_id}: {de}", True)
                     raise
 
@@ -208,17 +218,21 @@ class UploadFbFiles:
             return
 
         import_id = None
+        upload_type = None
+        all_file_names = [i[0] for i in files]
         try:
             # --------------- create import (group always uses Replace) ---------------
-            resp = create_import("Replace", is_test_environment=self._is_intuiflow_test)
+            upload_type = "Replace"
+            resp = create_import(upload_type, is_test_environment=self._is_intuiflow_test)
             import_id = (resp.get("data") or {}).get("Id")
             if import_id is None:
                 raise Exception(f"Create import returned no ID for the group upload. Ending call stack.")
 
-            self.log.log("_upload_group", f"Group import created with ID: {import_id}.")
+            self.log.log(f"_upload_group: {upload_type} - {all_file_names}", 
+                         f"Group import created with ID: {import_id}.")
 
             # ----------- upload each file's records to the same import ID ------------
-            uploaded_types = {}     # {file_name: record_count} for faster validation lookup
+            uploaded_types = {}     # {file_name: record_count} for validation lookup
             for file_name, file_data in files:
                 resp  = create_import_item(import_id, file_data["Data"], file_name,
                                            is_test_environment=self._is_intuiflow_test)
@@ -232,35 +246,37 @@ class UploadFbFiles:
                         f"Upload item did not confirm 'Identified' status for {file_name}. Ending call stack."
                     )
                 uploaded_types[file_name] = file_data["RecordCount"]
-                self.log.log("_upload_group",
+                self.log.log(f"_upload_group: {upload_type} - {all_file_names}", 
                              f"Successfully uploaded {file_name} to import ID: {import_id}.")
 
             # ---------------- validate all uploaded files together ----------------
             resp  = validate_import(import_id, is_test_environment=self._is_intuiflow_test)
             items = (resp.get("data") or {}).get("Items") or []
-            passed = self._check_validation_results(items, uploaded_types, "_upload_group")
+            passed = self._check_validation_results(items, uploaded_types, 
+                                                    f"_upload_group: {upload_type} - {all_file_names}")
             if not passed:
-                raise Exception(f"Validation failed for the group import. Import will not run.")
+                raise Exception(f"Validation failed for the group import {all_file_names}. Ending the call stack.")
 
             # -------------------------------- run ---------------------------------
             run_import(import_id, is_test_environment=self._is_intuiflow_test)
-            self.log.log("_upload_group",
+            self.log.log(f"_upload_group: {upload_type} - {all_file_names}", 
                          f"Successfully imported all grouped files. "
                          f"({sum(uploaded_types.values())} total records across "
                          f"{len(uploaded_types)} files: {list(uploaded_types.keys())}).")
-
+            import_id = None
         except Exception as e:
-            self.log.log("_upload_group", f"Error: {e}", True)
+            self.log.log(f"_upload_group: {upload_type} - {all_file_names}", 
+                         f"Error: {e}", True)
             raise
         finally:
             # if critical failure after creating the import, attempt to delete it
             if import_id is not None:
                 try:
                     delete_import(import_id, is_test_environment=self._is_intuiflow_test)
-                    self.log.log("_upload_group", 
+                    self.log.log(f"_upload_group: {upload_type} - {all_file_names}", 
                                  f"Successfully deleted the group import with ID: {import_id}.")
                 except Exception as de:
-                    self.log.log("_upload_group",
+                    self.log.log(f"_upload_group: {upload_type} - {all_file_names}", 
                                  f"Failed to delete failed import with ID {import_id}: {de}", True)
                     raise
 

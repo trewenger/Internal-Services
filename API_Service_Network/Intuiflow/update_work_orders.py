@@ -382,6 +382,7 @@ class UpdateWorkOrders:
             orders_to_update  = self._orders_to_update
             configs_by_order_num = {r.get("OrderNum"): r for r in configs if r.get("OrderNum")}
             no_update_count = 0
+            invalid_count = 0
             update_count = 0
             already_closed_count = 0
             for order in self._all_wos:
@@ -391,7 +392,7 @@ class UpdateWorkOrders:
                 # no matching order edge case
                 if matched_config is None:
                     if order["Status"] == "Open":
-                        no_update_count += 1
+                        invalid_count += 1
                         self.log.log("_get_fishbowl_wo_configs", 
                                      f"Warning: No Fishbowl MO match for open order {order['OrderNum']}. Match expected.", True)
                     else:
@@ -420,12 +421,12 @@ class UpdateWorkOrders:
                     continue
                 # these values are required for updates, skip if missing or invalid
                 if not order.get("MoId") or not order.get("MoNumber"):
-                    no_update_count += 1
+                    invalid_count += 1
                     self.log.log("_get_fishbowl_wo_configs", 
                                  f"Warning: Missing MoId/MoNumber for order {order['OrderNum']}. Skipping update.", True)
                     continue
                 if not _is_valid(order.get("BomId")):
-                    no_update_count += 1
+                    invalid_count += 1
                     self.log.log("_get_fishbowl_wo_configs", 
                                  f"Warning: Missing BomId for order {order['OrderNum']}. Skipping update.", True)
                     continue
@@ -438,14 +439,15 @@ class UpdateWorkOrders:
                     update_count += 1
                     orders_to_update.append(order)
                 else:
-                    no_update_count += 1
+                    invalid_count += 1
                     self.log.log("_get_fishbowl_wo_configs", 
                                  f"Warning: Unknown MO status for {order['OrderNum']}. Skipping update.", True)
                     
             self.log.log("_get_fishbowl_wo_configs", 
-                         f"Successfully staged {update_count} for updates. \
-                         {no_update_count} were invalid or had no changes. \
-                         {already_closed_count} were already closed in Fishbowl.")
+                         f"Successfully staged {update_count} of {len(self._all_wos)} total orders for updates: "
+                         f"{no_update_count} orders had no changes needing an update, "
+                         f"{invalid_count} orders were missing entirely (unexpected) or had invalid fields, "
+                         f"and {already_closed_count} were already closed in Fishbowl (expected).")
         except Exception as e:
             self.log.log("_get_fishbowl_wo_configs", f"Failed to retrieve Fishbowl WO/BoM info: {e}", True)
             raise
@@ -456,6 +458,10 @@ class UpdateWorkOrders:
     def _unissue_wos(self) -> None:
         ''' Unissues Fishbowl work orders one at a time. Orders must be unissued to 
         make changes to them. Requires self._orders_to_unissue be populated first. '''
+        if not self._orders_to_unissue:
+            self.log.log("_unissue_wos", "There are no orders to unissue. Skipping.")
+            return
+        
         try:
             fb = None       # initializing for the finally block in case fatal login error.
             fb = FishbowlSession(self._is_fb_test_db)
@@ -486,6 +492,9 @@ class UpdateWorkOrders:
     def _update_reissue_wos(self) -> None:
         ''' Final loop that updates then reissues the orders inside of Fishbowl. Requires 
         self._orders_to_update be populated first. '''
+        if not self._orders_to_update:
+            self.log.log("_update_reissue_wos", "There are no orders to update. Skipping.")
+
         try:
             fb = None       # initializing for the finally block in case fatal login error.
             fb = FishbowlSession(self._is_fb_test_db)
