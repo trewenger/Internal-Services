@@ -310,7 +310,7 @@ class CloseWorkOrders:
             total_before = len(self._completed_orders)
             self._completed_orders = kept_orders
             self.log.log("Check Default Locations",
-                         f"{already_processed} orders have already been processed. ")
+                         f"{already_processed} orders have already been closed. ")
             self.log.log("Check Default Locations",
                          f"{len(kept_orders)} of {total_before} completed orders have not been closed yet and have valid \
                          default locations for each part.")
@@ -321,14 +321,14 @@ class CloseWorkOrders:
             if fb:
                 fb.logout()
 
-    def _parse_part_configs(self, order:dict, matched_configs:list[dict]):
+    def _parse_part_configs(self, order:dict, matched_configs:list[dict], running_inv:dict):
         """ Modifies a single completed order and returns it hydrated with the 
         relevant part configs, MoID and total inventory count. Returns None if 
         there were invalid fields in any of the matched part configs. """
         try:
             required = ["MoId", "MoNumber", "PartNum", "PartId", "PartDefaultLocationId",
                 "OrderQty", "PartBomQty", "PartQty", "ItemType", "QtyOnHand", "InvLocationId"]
-            
+            running_inv = running_inv or {}
             part_configs = {}
             mo_id = None
             for part_config in matched_configs:
@@ -336,6 +336,7 @@ class CloseWorkOrders:
                 mo_num = part_config.get("MoNumber")
                 part_num = part_config.get("PartNum")
                 for field in required:
+                    # Edge case check (return early)
                     if not _is_valid(part_config.get(field)):
                         self.log.log("Parse Part Configs",
                                         f"Order {mo_num} for part {part_num}: "
@@ -356,11 +357,24 @@ class CloseWorkOrders:
                 # there can be multiple of the same part returned if inventory exists in multiple locations
                 mo_id = int(part_config["MoId"])
                 qty_on_hand = part_config["QtyOnHand"]
+                part_id = int(part_config["PartId"])
+                location_id = int(part_config["InvLocationId"])
+                key = (part_id, location_id)
+                
+                if key in running_inv:
+                    # inventory for this part has already been cycled by previous order in call stack.
+                    old_qoh = qty_on_hand if qty_on_hand == "INSUFFICIENT INVENTORY" else round(float(qty_on_hand), 5)
+                    qty_on_hand = running_inv.get(key)
+                    print(f"\n{part_num} HAS ALREADY BEEN CYCLED IN LOCATION ID: {location_id}"
+                        f"QOH HAS BEEN OVERWRITTEN FROM {old_qoh} TO {qty_on_hand}. "
+                        f"THIS IMPLIES THAT {abs(old_qoh-qty_on_hand)} UNITS WERE CYCLED IN PREVIOUS ORDERS.\n")
+                else:
+                    qty_on_hand = qty_on_hand if qty_on_hand == "INSUFFICIENT INVENTORY" else round(float(qty_on_hand), 5)
+
                 inv_location = {
                     "InventoryLocationGroupId": part_config.get("InvLocationGroupId"),
-                    "InventoryLocationId":      part_config["InvLocationId"],
-                    "QtyOnHand":                qty_on_hand if qty_on_hand == "INSUFFICIENT INVENTORY"
-                                                else round(float(qty_on_hand), 5),
+                    "InventoryLocationId":      location_id,
+                    "QtyOnHand":                qty_on_hand,
                 }
 
                 if part_num not in part_configs:
@@ -421,8 +435,10 @@ class CloseWorkOrders:
                 if mo_num:
                     configs_by_mo.setdefault(mo_num, []).append(config)
 
+
             orders_deleted = 0
             already_deleted = 0
+            running_inv = {}       # contains the previously completed cycles
             for order in self._completed_orders:
                 mo_num = order["MoNum"]
                 matched_configs = configs_by_mo.get(mo_num)
@@ -430,7 +446,7 @@ class CloseWorkOrders:
                     already_deleted += 1
                     continue        # order was already closed (likely), or someone changed the MO number. Skip silently.
 
-                hydrated_order = self._parse_part_configs(order, matched_configs)
+                hydrated_order = self._parse_part_configs(order, matched_configs, running_inv)
                 if not hydrated_order:
                     continue        # order had invalid fields. This info is logged by self._parse_part_configs()
 
@@ -439,12 +455,12 @@ class CloseWorkOrders:
                 inv_ok, inv_messages = _check_inventory(hydrated_order)
                 if not inv_ok:
                     self.short_inventory[mo_num] = inv_messages
-                    self.log.log("Process Real Closures",
-                                 f"Order {mo_num} has insufficient inventory. Skipping.", True)
+                    self.log.log("Process Real Closures", 
+                                f"Order {mo_num} has insufficient inventory. Skipping.")
                     continue
-
+                
                 # ── Aggregate Cycles ──────────────────────────────────────────
-                # create the list of inventory cycles based on part qtys needed and order qtys completed
+                # create the list of inventory cycles based on part QOH and order qtys needed
                 cycles = _aggregate_cycles(hydrated_order)
                 if cycles is None:
                     self.log.log("Process Real Closures",
@@ -476,17 +492,27 @@ class CloseWorkOrders:
 
                 if cycle_failed:
                     # rollback all completed cycles
+                    completed_recycles = []
                     for cycle in completed_cycles:
                         try:
                             if not fb.is_logged_in():
                                 fb = FishbowlSession(self._is_fb_test_db)
                             payload = _build_cycle_payload(cycle, is_rollback=True)
                             fb.cycle_part_inventory(int(cycle["PartId"]), payload)
+                            completed_recycles.append(cycle)
                         except Exception as e:
                             self.log.log("Process Real Closures",
                                          f"CRITICAL: Rollback failed for order {mo_num}, part {cycle['PartId']}: {e}. "
                                          f"Manual correction required: {cycle}", True)
-                    # re-issue the MO to restore it (regardless of rollback outcome)
+                            self.log.log("Process Real Closures", 
+                                         f"The following were recycled: \n{completed_recycles}")
+                            self.log.log("Process Real Closures", 
+                                         f"The following may need need manual recycle if not in the above list: \n"
+                                         f"{completed_cycles}")
+                            self.log.log("Process Real Closures", "The order will remain unissued. Ending the call stack.")
+                            raise
+                            
+                    # re-issue the MO to restore it
                     try:
                         if not fb.is_logged_in():
                             fb = FishbowlSession(self._is_fb_test_db)
@@ -498,7 +524,7 @@ class CloseWorkOrders:
                                      f"CRITICAL: Order {mo_num} rollback complete but re-issue failed. "
                                      f"Please manually re-issue MO {mo_num}. {e}", True)
                     finally:
-                        continue     # skip delete
+                        continue     # skip deleting the order, has not been cycled yet. 
 
                 # ── Delete MO ─────────────────────────────────────────────────
                 try:
@@ -506,8 +532,15 @@ class CloseWorkOrders:
                         fb = FishbowlSession(self._is_fb_test_db)
                     fb.delete_mo(hydrated_order["MoId"])
                     orders_deleted += 1
+
+                    # used to track current on hand for the the other orders because their on-hand data is stale.
+                    for i in cycles:
+                        # the most current cycle has the most current inventory record.
+                        key = (int(i["PartId"]), int(i["InventoryLocationId"]))
+                        running_inv[key] = i["NewQtyOnHand"]
                 except Exception as e:
                     # inventory was already cycled — must rollback and re-issue
+                    completed_recycles = []
                     self.log.log("Process Real Closures",
                                  f"Delete failed for order {mo_num} after inventory was cycled. "
                                  f"Rolling back inventory. {e}", True)
@@ -517,10 +550,18 @@ class CloseWorkOrders:
                                 fb = FishbowlSession(self._is_fb_test_db)
                             payload = _build_cycle_payload(cycle, is_rollback=True)
                             fb.cycle_part_inventory(int(cycle["PartId"]), payload)
+                            completed_recycles.append(cycle)
                         except Exception as re:
                             self.log.log("Process Real Closures",
                                          f"CRITICAL: Rollback failed for order {mo_num}, part {cycle['PartId']}: {re}. "
                                          f"Manual correction required: {cycle}", True)
+                            self.log.log("Process Real Closures", 
+                                         f"The following were recycled: \n{completed_recycles}")
+                            self.log.log("Process Real Closures", 
+                                         f"The following may need need manual recycle if not in the above list: \n"
+                                         f"{completed_cycles}")
+                            self.log.log("Process Real Closures", "The order will remain unissued. Ending the call stack.")
+                            raise
                     try:
                         if not fb.is_logged_in():
                             fb = FishbowlSession(self._is_fb_test_db)
