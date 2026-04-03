@@ -163,10 +163,10 @@ class ImportPendingOrders:
             resp = get_pending_orders(is_test_environment=self._is_intuiflow_test)
             orders = resp["data"] or []
             if not orders:
-                self.log.log("_get_pending_orders", "Intuiflow returned no pending orders. Nothing to import.")
+                self.log.log("Get Pending Orders", "Intuiflow returned no pending orders. Nothing to import.")
                 return
 
-            self.log.log("_get_pending_orders", "Successfully queried pending orders from Intuiflow.")
+            self.log.log("Get Pending Orders", "Successfully queried pending orders from Intuiflow.")
 
             for order in orders:
                 order_type = order.get("OrderType")
@@ -219,11 +219,11 @@ class ImportPendingOrders:
             if not self._work_orders and not self._purchase_orders:
                 raise Exception("No valid pending orders (OrderType 1 or 2) found. Nothing to import.")
 
-            self.log.log("_get_pending_orders",
+            self.log.log("Get Pending Orders",
                          f"Found {len(self._work_orders)} pending work orders and "
                          f"{len(self._purchase_orders)} pending purchase orders to import to Fishbowl.")
         except Exception as e:
-            self.log.log("_get_pending_orders", f"Fatal error: {e}", True)
+            self.log.log("Get Pending Orders", f"Fatal error: {e}", True)
             raise
 
     def _enrich_orders_intuiflow(self) -> None:
@@ -231,7 +231,7 @@ class ImportPendingOrders:
         data (to fill in missing WO routing names) from Intuiflow. Removes orders
         that cannot be processed due to missing routing. '''
         if not self._all_orders:
-            self.log.log("_enrich_orders_intuiflow", "No orders to hydrate with Intuiflow data.")
+            self.log.log("Enrich Orders (Intuiflow)", "No orders to hydrate with Intuiflow data.")
             return
         
         try:
@@ -242,7 +242,7 @@ class ImportPendingOrders:
                 if not bom_data:
                     raise Exception("Intuiflow returned no BoM data for PO classification. Ending the call stack.")
 
-                self.log.log("_enrich_orders_intuiflow", "Successfully queried BoM info from Intuiflow.")
+                self.log.log("Enrich Orders (Intuiflow)", "Successfully queried BoM info from Intuiflow.")
 
                 for po in self._purchase_orders:
                     matched_bom = next(
@@ -256,7 +256,7 @@ class ImportPendingOrders:
                         po["PoTypeID"] = 10                                  # standard purchase PO
                         self._purchase_pos.append(po)
 
-                self.log.log("_enrich_orders_intuiflow",
+                self.log.log("Enrich Orders (Intuiflow)",
                              f"Successfully categorized {len(self._outsourced_pos)} outsourced POs and "
                              f"{len(self._purchase_pos)} purchase POs out of {len(self._purchase_orders)} total POs.")
 
@@ -267,7 +267,7 @@ class ImportPendingOrders:
                 if not routing_data:
                     raise Exception("Intuiflow returned no routing data for the pending work orders. Ending the call stack.")
 
-                self.log.log("_enrich_orders_intuiflow", "Successfully queried routing info from Intuiflow.")
+                self.log.log("Enrich Orders (Intuiflow)", "Successfully queried routing info from Intuiflow.")
 
                 enriched = []
                 for wo in self._work_orders:
@@ -282,23 +282,23 @@ class ImportPendingOrders:
                             wo["RoutingName"] = matched.get("RoutingName")
                             enriched.append(wo)
                         else:
-                            self.log.log("_enrich_orders_intuiflow",
+                            self.log.log("Enrich Orders (Intuiflow)",
                                          f"Warning: No routing found for part {wo['PartNumber']} "
                                          f"on WO {wo['OrderId']}. This order will not be imported.", True)
                             
-                self.log.log("_enrich_orders_intuiflow",
+                self.log.log("Enrich Orders (Intuiflow)",
                                 f"Successfully assigned a valid routing to {len(enriched)} "
                                 f"of {len(self._work_orders)} work orders.")
                 self._work_orders = enriched
         except Exception as e:
-            self.log.log("_enrich_orders_intuiflow", f"Fatal error: {e}", True)
+            self.log.log("Enrich Orders (Intuiflow)", f"Fatal error: {e}", True)
             raise
 
     def _enrich_orders_fishbowl(self) -> None:
         ''' Queries Fishbowl for BoM IDs (WOs), part info, and vendor info (POs) in a single
         session. Removes orders that cannot be matched. '''
         if not self._work_orders and not self._outsourced_pos and not self._purchase_pos:
-            self.log.log("_enrich_orders_fishbowl", "No orders to hydrate with Fishbowl data.")
+            self.log.log("Enrich Orders (Fishbowl)", "No orders to hydrate with Fishbowl data.")
             return
 
         try:
@@ -307,7 +307,7 @@ class ImportPendingOrders:
             if not fb.is_logged_in():
                 raise Exception(f"Failed to login to Fishbowl after {fb._login_attemps} attempts.")
 
-            self.log.log("_enrich_orders_fishbowl", "Successfully logged into Fishbowl.", auto_print=False)
+            self.log.log("Enrich Orders (Fishbowl)", "Successfully logged into Fishbowl.", auto_print=False)
 
             # ── Query BoM IDs for WOs ─────────────────────────────────────────
             if self._work_orders:
@@ -315,7 +315,7 @@ class ImportPendingOrders:
                 if not bom_rows:
                     raise Exception("BoMID query returned no records - cannot hydrate work orders.")
 
-                self.log.log("_enrich_orders_fishbowl", "Successfully queried BoM IDs from Fishbowl.", auto_print=False)
+                self.log.log("Enrich Orders (Fishbowl)", "Successfully queried BoM IDs from Fishbowl.", auto_print=False)
 
                 enriched = []
                 for wo in self._work_orders:
@@ -339,11 +339,11 @@ class ImportPendingOrders:
                         wo["BomName"] = matched["BomNumber"]
                         enriched.append(wo)
                     else:
-                        self.log.log("_enrich_orders_fishbowl",
+                        self.log.log("Enrich Orders (Fishbowl)",
                                      f"Warning: No BoM found for part {wo['PartNumber']} "
                                      f"on WO {wo['OrderId']}. This order will not be imported.", True)
 
-                self.log.log("_enrich_orders_fishbowl",
+                self.log.log("Enrich Orders (Fishbowl)",
                                 f"{len(enriched)} of {len(self._work_orders)} work orders were hydrated with Fishbowl BoM IDs.")
                 self._work_orders = enriched
 
@@ -353,7 +353,7 @@ class ImportPendingOrders:
                 if not part_rows:
                     raise Exception("PartInfo query returned no records — cannot hydrate purchase orders.")
 
-                self.log.log("_enrich_orders_fishbowl", "Successfully queried part info from Fishbowl.", auto_print=False)
+                self.log.log("Enrich Orders (Fishbowl)", "Successfully queried part info from Fishbowl.", auto_print=False)
 
                 # reformat the query response for faster lookup
                 parts_by_num = {str(p["PartNumber"]): p for p in part_rows}
@@ -369,7 +369,7 @@ class ImportPendingOrders:
                         po["PartDescription"] = str(child["PartDescription"])
                         enriched_outsourced.append(po)
                     else:
-                        self.log.log("_enrich_orders_fishbowl",
+                        self.log.log("Enrich Orders (Fishbowl)",
                                      f"Warning: Could not find part info for outsourced PO {po['OrderId']} "
                                      f"(part {po['PartNumber']} and/or child {po.get('ChildPartNum')}). Skipping import.", True)
 
@@ -382,7 +382,7 @@ class ImportPendingOrders:
                         po["PartDescription"] = str(part["PartDescription"])
                         enriched_purchase.append(po)
                     else:
-                        self.log.log("_enrich_orders_fishbowl",
+                        self.log.log("Enrich Orders (Fishbowl)",
                                      f"Warning: Could not find part info for purchase PO {po['OrderId']} "
                                      f"(part {po['PartNumber']}). Skipping import.", True)
 
@@ -395,7 +395,7 @@ class ImportPendingOrders:
                 if not vendor_rows:
                     raise Exception("PartVendor query returned no records — cannot hydrate purchase orders.")
 
-                self.log.log("_enrich_orders_fishbowl", "Successfully queried part vendor info from Fishbowl.", auto_print=False)
+                self.log.log("Enrich Orders (Fishbowl)", "Successfully queried part vendor info from Fishbowl.", auto_print=False)
 
                 # reformat the query response for faster lookup
                 vendors_by_part = {str(v["PartNumber"]): v for v in vendor_rows}
@@ -408,7 +408,7 @@ class ImportPendingOrders:
                         po["VendorId"] = str(matched["VendorId"])
                         enriched_outsourced.append(po)
                     else:
-                        self.log.log("_enrich_orders_fishbowl",
+                        self.log.log("Enrich Orders (Fishbowl)",
                                      f"Warning: No vendor found for child part {po.get('ChildPartNum')} "
                                      f"on outsourced PO {po['OrderId']}. Skipping import.", True)
 
@@ -424,23 +424,23 @@ class ImportPendingOrders:
                             po["VendorId"] = str(matched["VendorId"])
                             enriched_purchase.append(po)
                         else:
-                            self.log.log("_enrich_orders_fishbowl",
+                            self.log.log("Enrich Orders (Fishbowl)",
                                          f"Warning: No vendor found for part {po['PartNumber']} "
                                          f"on purchase PO {po['OrderId']}. Skipping import.", True)
                             
-                self.log.log("_enrich_orders_fishbowl",
+                self.log.log("Enrich Orders (Fishbowl)",
                         f"{len(enriched_outsourced)} of {len(self._outsourced_pos)} outsourced POs "
                         f"and {len(enriched_purchase)} of {len(self._purchase_pos)} purchase POs "
                         "were hydrated with current Fishbowl part info.")
                 self._outsourced_pos = enriched_outsourced
                 self._purchase_pos   = enriched_purchase
 
-            self.log.log("_enrich_orders_fishbowl",
+            self.log.log("Enrich Orders (Fishbowl)",
                          f"Hydration complete: {len(self._work_orders)} WOs, "
                          f"{len(self._outsourced_pos)} outsourced POs, "
                          f"{len(self._purchase_pos)} purchase POs ready to import.")
         except Exception as e:
-            self.log.log("_enrich_orders_fishbowl", f"Fatal error: {e}", True)
+            self.log.log("Enrich Orders (Fishbowl)", f"Fatal error: {e}", True)
             raise
         finally:
             if fb:
@@ -451,7 +451,7 @@ class ImportPendingOrders:
         created orders have their PendingOrderId added to the commit list. Per-order
         failures are logged but do not abort the remaining orders. '''
         if not self._work_orders and not self._outsourced_pos and not self._purchase_pos:
-            self.log.log("_import_to_fishbowl", "No orders to import to Fishbowl.")
+            self.log.log("Import To Fishbowl", "No orders to import to Fishbowl.")
             return
 
         try:
@@ -460,7 +460,7 @@ class ImportPendingOrders:
             if not fb.is_logged_in():
                 raise Exception(f"Failed to login to Fishbowl after {fb._login_attemps} attempts.")
 
-            self.log.log("_import_to_fishbowl", "Successfully logged into Fishbowl.", auto_print=False)
+            self.log.log("Import To Fishbowl", "Successfully logged into Fishbowl.", auto_print=False)
 
             timestamp = _build_timestamp()
             today     = datetime.now()
@@ -475,12 +475,12 @@ class ImportPendingOrders:
                     self._committed_ids.append(wo["PendingOrderId"])
                     mo_created += 1
                 except Exception as e:
-                    self.log.log("_import_to_fishbowl",
+                    self.log.log("Import To Fishbowl",
                                  f"Failed to create an MO for part {wo['PartNumber']} "
                                  f"(order {wo['OrderId']}): {e}", True)
 
             if self._work_orders:
-                self.log.log("_import_to_fishbowl",
+                self.log.log("Import To Fishbowl",
                              f"Created {mo_created} of {len(self._work_orders)} MOs in Fishbowl.")
 
             # ── Create Outsourced POs ─────────────────────────────────────────
@@ -492,12 +492,12 @@ class ImportPendingOrders:
                     self._committed_ids.append(po["PendingOrderId"])
                     outsourced_created += 1
                 except Exception as e:
-                    self.log.log("_import_to_fishbowl",
+                    self.log.log("Import To Fishbowl",
                                  f"Failed to create an outsourced PO for part {po['PartNumber']} "
                                  f"(order {po['OrderId']}): {e}", True)
 
             if self._outsourced_pos:
-                self.log.log("_import_to_fishbowl",
+                self.log.log("Import To Fishbowl",
                              f"Created {outsourced_created} of {len(self._outsourced_pos)} outsourced POs in Fishbowl.")
 
             # ── Create Purchase POs ───────────────────────────────────────────
@@ -509,16 +509,16 @@ class ImportPendingOrders:
                     self._committed_ids.append(po["PendingOrderId"])
                     purchase_created += 1
                 except Exception as e:
-                    self.log.log("_import_to_fishbowl",
+                    self.log.log("Import To Fishbowl",
                                  f"Failed to create a purchase PO for part {po['PartNumber']} "
                                  f"(order {po['OrderId']}): {e}", True)
 
             if self._purchase_pos:
-                self.log.log("_import_to_fishbowl",
+                self.log.log("Import To Fishbowl",
                              f"Created {purchase_created} of {len(self._purchase_pos)} purchase POs in Fishbowl.")
 
         except Exception as e:
-            self.log.log("_import_to_fishbowl", f"Fatal error: {e}", True)
+            self.log.log("Import To Fishbowl", f"Fatal error: {e}", True)
             raise
         finally:
             if fb:
@@ -528,7 +528,7 @@ class ImportPendingOrders:
         ''' Posts the PendingOrderIds of all successfully created Fishbowl orders
         to Intuiflow to mark them as committed. Warns if any orders failed to import. '''
         if not self._committed_ids:
-            self.log.log("_commit_orders", "No orders were imported — nothing to commit.")
+            self.log.log("Commit Orders", "No orders were imported — nothing to commit.")
             return
 
         try:
@@ -541,16 +541,16 @@ class ImportPendingOrders:
                     o["PartNumber"] for o in self._all_orders
                     if str(o["PendingOrderId"]) not in committed_set
                 ]
-                self.log.log("_commit_orders",
+                self.log.log("Commit Orders",
                              f"Warning: Only {len(self._committed_ids)} of {len(self._all_orders)} orders were "
                              f"imported and committed. The following parts failed at some point in the pipeline: "
                              f"{failed_parts}", True)
 
             committ_pending_orders(self._committed_ids, is_test_environment=self._is_intuiflow_test)
-            self.log.log("_commit_orders",
+            self.log.log("Commit Orders",
                          f"Successfully committed {len(self._committed_ids)} orders in Intuiflow.")
         except Exception as e:
-            self.log.log("_commit_orders", f"Fatal error: {e}", True)
+            self.log.log("Commit Orders", f"Fatal error: {e}", True)
             raise
 
     def auto_run(self) -> SessionLog:
@@ -567,6 +567,6 @@ class ImportPendingOrders:
             # commit successfully imported orders in Intuiflow
             self._commit_orders()
         except Exception as e:
-            self.log.log("auto_run", str(e), True)
+            self.log.log("Auto Run", str(e), True)
         finally:
             return self.log

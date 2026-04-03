@@ -88,7 +88,7 @@ class UpdateWorkOrders:
             resp = get_open_wo(self._is_intuiflow_test_db)    # API calls raise Exception on failure.
             orders = resp["data"]
 
-            self.log.log("_get_intuiflow_open_wos", "Successfully queried open work orders in Intuiflow.")
+            self.log.log("Get Open Work Orders (Intuiflow)", "Successfully queried open work orders in Intuiflow.")
 
             # validate and normalize the fields
             processed_open_orders = []
@@ -111,14 +111,14 @@ class UpdateWorkOrders:
 
             self._open_wos = processed_open_orders
             if not processed_open_orders:
-                self.log.log("_get_intuiflow_open_wos", "Warning: No valid open orders detected. Will check for closed orders.")
+                self.log.log("Get Open Work Orders (Intuiflow)", "Warning: No valid open orders detected. Will check for closed orders.")
             else:
-                self.log.log("_get_intuiflow_open_wos", f"Successfully parsed {len(processed_open_orders)} work orders.")
+                self.log.log("Get Open Work Orders (Intuiflow)", f"Successfully parsed {len(processed_open_orders)} work orders.")
                 # hydrate the open work orders with start dates and BoM info
                 self._get_intuiflow_open_rope_items()
                 self._get_intuiflow_open_order_boms()
         except Exception as e:
-            self.log.log("_get_intuiflow_open_wos", f"Ending the API call stack due to error: {e}", True)
+            self.log.log("Get Open Work Orders (Intuiflow)", f"Ending the API call stack due to error: {e}", True)
             raise
     
     def _get_intuiflow_open_rope_items(self) -> None:
@@ -129,9 +129,9 @@ class UpdateWorkOrders:
             resp = get_open_rope_items(self._location, self._is_intuiflow_test_db)    # API calls raise Exception on failure.
             rope_items = resp["data"] or []
             if not rope_items:
-                self.log.log("_get_intuiflow_open_rope_items", "Warning: no data returned in the open rope items call.", True)
+                self.log.log("Get Open Rope Items (Intuiflow)", "Warning: no data returned in the open rope items call.", True)
             else:
-                self.log.log("_get_intuiflow_open_rope_items", "Successfully queried open rope-items in Intuiflow.")
+                self.log.log("Get Open Rope Items (Intuiflow)", "Successfully queried open rope-items in Intuiflow.")
 
             # Pre-group rope items by order number for O(n+m) lookup
             rope_by_order = {}
@@ -155,7 +155,7 @@ class UpdateWorkOrders:
 
                 # no rope items for this order — start date cannot be determined
                 if not first_op:
-                    self.log.log("_get_intuiflow_open_rope_items", 
+                    self.log.log("Get Open Rope Items (Intuiflow)", 
                                  f"Warning: No rope items for order {order['OrderNum']}. Start date will not be updated.", True)
                     order["StartDate"] = "NA"
                     continue
@@ -175,14 +175,14 @@ class UpdateWorkOrders:
                     updated_start_dates += 1
                     order["StartDate"] = srb[:10]
                 else:
-                    self.log.log("_get_intuiflow_open_rope_items", 
+                    self.log.log("Get Open Rope Items (Intuiflow)", 
                                  f"Warning: this order will not have its start date updated: {order['OrderNum']}", True)
                     order["StartDate"] = "NA"
 
-            self.log.log("_get_intuiflow_open_rope_items", 
+            self.log.log("Get Open Rope Items (Intuiflow)", 
                          f"Successfully processed start dates on {updated_start_dates} of {len(self._open_wos)} open work orders.")
         except Exception as e:
-            self.log.log("_get_intuiflow_open_rope_items", f"Ending the API call stack due to error: {e}", True)
+            self.log.log("Get Open Rope Items (Intuiflow)", f"Ending the API call stack due to error: {e}", True)
             raise
 
     def _get_intuiflow_open_order_boms(self) -> None:
@@ -193,9 +193,9 @@ class UpdateWorkOrders:
             resp = get_bom_names(self._is_intuiflow_test_db)    # API calls raise Exception on failure.
             bom_data = resp["data"] or []
             if not bom_data:
-                self.log.log("_get_intuiflow_open_order_boms", "Warning: no data returned in the open order BoMs call.", True)
+                self.log.log("Get Open Order BOMs (Intuiflow)", "Warning: no data returned in the open order BoMs call.", True)
             else:
-                self.log.log("_get_intuiflow_open_order_boms", "Successfully queried open order BoM names in Intuiflow.")
+                self.log.log("Get Open Order BOMs (Intuiflow)", "Successfully queried open order BoM names in Intuiflow.")
 
             # Pre-group BoMs by order number for O(n) lookup, then match to open orders
             matched_boms = 0
@@ -206,13 +206,13 @@ class UpdateWorkOrders:
                     order["BOMName"] = match.get("BOMName")
                     matched_boms += 1
                 else:
-                    self.log.log("_get_intuiflow_open_order_boms", 
+                    self.log.log("Get Open Order BOMs (Intuiflow)", 
                                  f"Warning: No BoM found for order {order['OrderNum']}. BoM won't be updated.", True)
 
-            self.log.log("_get_intuiflow_open_order_boms", 
+            self.log.log("Get Open Order BOMs (Intuiflow)", 
                          f"Successfully processed BoM names for {matched_boms} of {len(self._open_wos)} open work orders.")
         except Exception as e:
-            self.log.log("_get_intuiflow_open_order_boms", f"Ending the API call stack due to error: {e}", True)
+            self.log.log("Get Open Order BOMs (Intuiflow)", f"Ending the API call stack due to error: {e}", True)
             raise
 
     def _get_intuiflow_closed_wos(self) -> None:
@@ -223,7 +223,7 @@ class UpdateWorkOrders:
             resp = get_closed_wo(self._date_7_ago, self._is_intuiflow_test_db)    # API calls raise Exception on failure.
             orders = resp["data"]
 
-            self.log.log("_get_intuiflow_closed_wos", "Successfully queried closed orders in Intuiflow.")
+            self.log.log("Get Closed Work Orders (Intuiflow)", "Successfully queried closed orders in Intuiflow.")
 
             # validate and normalize the fields
             processed_closed_orders = []
@@ -247,13 +247,13 @@ class UpdateWorkOrders:
             self._closed_wos = processed_closed_orders
             if not processed_closed_orders:
                 # no need to check for rope items if no orders exist
-                self.log.log("_get_intuiflow_closed_wos", f"Warning: No valid closed orders detected since {self._date_7_ago}.", True)
+                self.log.log("Get Closed Work Orders (Intuiflow)", f"Warning: No valid closed orders detected since {self._date_7_ago}.", True)
             else:
-                self.log.log("_get_intuiflow_closed_wos", f"Successfully retrieved {len(processed_closed_orders)} work orders.")
+                self.log.log("Get Closed Work Orders (Intuiflow)", f"Successfully retrieved {len(processed_closed_orders)} work orders.")
                 # Hydrate closed orders with start dates (intentionally not modifying BoMs on closed orders)
                 self._get_intuiflow_closed_rope_items()
         except Exception as e:
-            self.log.log("_get_intuiflow_closed_wos", f"Ending the API call stack due to error: {e}", True)
+            self.log.log("Get Closed Work Orders (Intuiflow)", f"Ending the API call stack due to error: {e}", True)
             raise
 
     def _get_intuiflow_closed_rope_items(self) -> None:
@@ -264,9 +264,9 @@ class UpdateWorkOrders:
             resp = get_closed_rope_items(self._date_7_ago, self._location, self._is_intuiflow_test_db)    # API calls raise Exception on failure.
             rope_items = resp["data"] or []
             if not rope_items:
-                self.log.log("_get_intuiflow_closed_rope_items", "Warning: no data returned in the closed rope items call.", True)
+                self.log.log("Get Closed Rope Items (Intuiflow)", "Warning: no data returned in the closed rope items call.", True)
             else:
-                self.log.log("_get_intuiflow_closed_rope_items", "Successfully queried closed order rope-items in Intuiflow.")
+                self.log.log("Get Closed Rope Items (Intuiflow)", "Successfully queried closed order rope-items in Intuiflow.")
 
             # Pre-group rope items by order number for O(n+m) lookup
             rope_by_order = {}
@@ -308,14 +308,14 @@ class UpdateWorkOrders:
                     order["StartDate"] = srb[:10]
                     updated_start_dates += 1
                 else:
-                    self.log.log("_get_intuiflow_closed_rope_items", 
+                    self.log.log("Get Closed Rope Items (Intuiflow)", 
                                  f"Warning: this order will not have its start date updated: {order['OrderNum']}", True)
                     order["StartDate"] = "NA"
 
-            self.log.log("_get_intuiflow_closed_rope_items", 
+            self.log.log("Get Closed Rope Items (Intuiflow)", 
                          f"Successfully processed start dates on {updated_start_dates} of {len(self._closed_wos)} closed work orders.")
         except Exception as e:
-            self.log.log("_get_intuiflow_closed_rope_items", f"Ending the API call stack due to error: {e}", True)
+            self.log.log("Get Closed Rope Items (Intuiflow)", f"Ending the API call stack due to error: {e}", True)
             raise
 
     def _get_fishbowl_bom_info(self) -> None:
@@ -328,14 +328,14 @@ class UpdateWorkOrders:
             if not fb.is_logged_in():
                 raise Exception(f"Failed to login to Fishbowl after {fb._login_attemps} attempts.")
             
-            self.log.log("_get_fishbowl_bom_info", "Successfully logged into Fishbowl.")
+            self.log.log("Get BOM Info (Fishbowl)", "Successfully logged into Fishbowl.")
 
             # resolve BomId for each order by BOMName & add the BoM ID to each order in self._all_wos
             bom_rows = fb.query(self._query_wo_boms)["data"] or []      # Raises exception on api call failure
             if not bom_rows:
                 raise Exception("The FB BoM query response has no records.")
             
-            self.log.log("_get_fishbowl_bom_info", "Successfully queried BoM IDs in Fishbowl.")
+            self.log.log("Get BOM Info (Fishbowl)", "Successfully queried BoM IDs in Fishbowl.")
 
             bom_by_name = {r.get("BOMName"): r for r in bom_rows if r.get("BOMName")}
             bom_match_count = 0
@@ -347,12 +347,12 @@ class UpdateWorkOrders:
                         order["BomId"] = match.get("BomId")
                         bom_match_count += 1
                     else:
-                        self.log.log("_get_fishbowl_bom_info", 
+                        self.log.log("Get BOM Info (Fishbowl)", 
                                      f"Warning: No BomId found for BoM name: '{bom_name}' (order {order['OrderNum']}). This field won't be updated.", True)
                         
-            self.log.log("_get_fishbowl_bom_info", f"Successfully processed BoM IDs for {bom_match_count} of {len(self._open_wos)} work orders.")
+            self.log.log("Get BOM Info (Fishbowl)", f"Successfully processed BoM IDs for {bom_match_count} of {len(self._open_wos)} work orders.")
         except Exception as e:
-            self.log.log("_get_fishbowl_bom_info", 
+            self.log.log("Get BOM Info (Fishbowl)", 
                          f"Fatal error trying to retrieve required Fishbowl BoM information for the update: {e}", True)
             raise
         finally:
@@ -369,13 +369,13 @@ class UpdateWorkOrders:
             if not fb.is_logged_in():
                 raise Exception(f"Failed to login to Fishbowl after {fb._login_attemps} attempts.")
             
-            self.log.log("_get_fishbowl_wo_configs", "Successfully logged into Fishbowl.")
+            self.log.log("Get WO Configs (Fishbowl)", "Successfully logged into Fishbowl.")
 
             configs = fb.query(self._query_wo_configs)["data"] or []      # Raises exception on api call failure
             if not configs:
                 raise Exception("The FB WO configs query response has no records.")
             
-            self.log.log("_get_fishbowl_wo_configs", "Successfully queried work order configs in Fishbowl.")
+            self.log.log("Get WO Configs (Fishbowl)", "Successfully queried work order configs in Fishbowl.")
 
             # resolve current MO configs; diff vs Intuiflow data - (uses existing BoM ID if _get_fishbowl_bom_info fails)
             orders_to_unissue = self._orders_to_unissue
@@ -393,7 +393,7 @@ class UpdateWorkOrders:
                 if matched_config is None:
                     if order["Status"] == "Open":
                         invalid_count += 1
-                        self.log.log("_get_fishbowl_wo_configs", 
+                        self.log.log("Get WO Configs (Fishbowl)", 
                                      f"Warning: No Fishbowl MO match for open order {order['OrderNum']}. Match expected.", True)
                     else:
                         already_closed_count += 1
@@ -422,12 +422,12 @@ class UpdateWorkOrders:
                 # these values are required for updates, skip if missing or invalid
                 if not order.get("MoId") or not order.get("MoNumber"):
                     invalid_count += 1
-                    self.log.log("_get_fishbowl_wo_configs", 
+                    self.log.log("Get WO Configs (Fishbowl)", 
                                  f"Warning: Missing MoId/MoNumber for order {order['OrderNum']}. Skipping update.", True)
                     continue
                 if not _is_valid(order.get("BomId")):
                     invalid_count += 1
-                    self.log.log("_get_fishbowl_wo_configs", 
+                    self.log.log("Get WO Configs (Fishbowl)", 
                                  f"Warning: Missing BomId for order {order['OrderNum']}. Skipping update.", True)
                     continue
 
@@ -440,16 +440,16 @@ class UpdateWorkOrders:
                     orders_to_update.append(order)
                 else:
                     invalid_count += 1
-                    self.log.log("_get_fishbowl_wo_configs", 
+                    self.log.log("Get WO Configs (Fishbowl)", 
                                  f"Warning: Unknown MO status for {order['OrderNum']}. Skipping update.", True)
                     
-            self.log.log("_get_fishbowl_wo_configs", 
+            self.log.log("Get WO Configs (Fishbowl)", 
                          f"Successfully staged {update_count} of {len(self._all_wos)} total orders for updates: "
                          f"{no_update_count} orders had no changes needing an update, "
                          f"{invalid_count} orders were missing entirely (unexpected) or had invalid fields, "
                          f"and {already_closed_count} were already closed in Fishbowl (expected).")
         except Exception as e:
-            self.log.log("_get_fishbowl_wo_configs", f"Failed to retrieve Fishbowl WO/BoM info: {e}", True)
+            self.log.log("Get WO Configs (Fishbowl)", f"Failed to retrieve Fishbowl WO/BoM info: {e}", True)
             raise
         finally:
             if fb:
@@ -459,7 +459,7 @@ class UpdateWorkOrders:
         ''' Unissues Fishbowl work orders one at a time. Orders must be unissued to 
         make changes to them. Requires self._orders_to_unissue be populated first. '''
         if not self._orders_to_unissue:
-            self.log.log("_unissue_wos", "There are no orders to unissue. Skipping.")
+            self.log.log("Unissue Work Orders", "There are no orders to unissue. Skipping.")
             return
         
         try:
@@ -468,7 +468,7 @@ class UpdateWorkOrders:
             if not fb.is_logged_in():
                 raise Exception(f"Failed to login to Fishbowl after {fb._login_attemps} login attempts.")
             
-            self.log.log("_unissue_wos", "Successfully logged into Fishbowl.")
+            self.log.log("Unissue Work Orders", "Successfully logged into Fishbowl.")
 
             unissued_orders = 0
             for order in self._orders_to_unissue:
@@ -477,13 +477,13 @@ class UpdateWorkOrders:
                     self._orders_to_update.append(order)    # ready to be updated now that its unissued
                     unissued_orders += 1
                 except Exception as e:
-                    self.log.log("_unissue_wos", 
+                    self.log.log("Unissue Work Orders", 
                                  f"Unable to unissue {order.get('OrderNum')}. This order will not be updated. ", True)
                     
-            self.log.log("_unissue_wos", 
+            self.log.log("Unissue Work Orders", 
                          f"Successfully unissued {unissued_orders} of {len(self._orders_to_unissue)} work orders in Fishbowl.")
         except Exception as e:
-            self.log.log("_unissue_wos", f"Warning: Failed to unissue MO in Fishbowl: {e}", True)
+            self.log.log("Unissue Work Orders", f"Warning: Failed to unissue MO in Fishbowl: {e}", True)
             raise
         finally:
             if fb:
@@ -493,7 +493,8 @@ class UpdateWorkOrders:
         ''' Final loop that updates then reissues the orders inside of Fishbowl. Requires 
         self._orders_to_update be populated first. '''
         if not self._orders_to_update:
-            self.log.log("_update_reissue_wos", "There are no orders to update. Skipping.")
+            self.log.log("Update And Reissue Work Orders", "There are no orders to update. Skipping.")
+            return
 
         try:
             fb = None       # initializing for the finally block in case fatal login error.
@@ -501,7 +502,7 @@ class UpdateWorkOrders:
             if not fb.is_logged_in():
                 raise Exception(f"Failed to login to Fishbowl after {fb._login_attemps} login attempts.")
             
-            self.log.log("_update_reissue_wos", "Successfully logged into Fishbowl.")
+            self.log.log("Update And Reissue Work Orders", "Successfully logged into Fishbowl.")
             
             # Update → Issue loop
             timestamp = _build_timestamp()          # this should be updated at some point to be a real timestamp from Intuiflow
@@ -514,19 +515,19 @@ class UpdateWorkOrders:
                     fb.update_mo(order_id, update_payload)      # raises exception on API call failure
                     orders_updated += 1
                 except Exception as e:
-                    self.log.log("_update_reissue_wos", 
+                    self.log.log("Update And Reissue Work Orders", 
                                  f"Error: Failed to update MO {order.get('MoNumber')}, will attempt to re-issue: {e}", True)
                 try:
                     fb.issue_mo(order_id)                       # raises exception on API call failure
                     orders_issued += 1
                 except Exception as e:
-                    self.log.log("_update_reissue_wos", 
+                    self.log.log("Update And Reissue Work Orders", 
                                  f"Error: Failed to re-issue MO {order.get('MoNumber')}: {e}", True)
 
-            self.log.log("_update_reissue_wos", 
+            self.log.log("Update And Reissue Work Orders", 
                          f"Successfully updated {orders_updated} and issued {orders_issued} of {len(self._orders_to_update)} total Fishbowl work orders. ")
         except Exception as e:
-            self.log.log("_update_reissue_wos", f"Warning: Failed to update/issue some or all of the MOs in Fishbowl: {e}", True)
+            self.log.log("Update And Reissue Work Orders", f"Warning: Failed to update/issue some or all of the MOs in Fishbowl: {e}", True)
             raise
         finally:
             if fb:
@@ -547,7 +548,7 @@ class UpdateWorkOrders:
             self._unissue_wos()
             self._update_reissue_wos()
         except Exception as e:
-            self.log.log("auto_run", f"ERROR: Unable to complete work order update: {e}", True)
+            self.log.log("Auto Run", f"ERROR: Unable to complete work order update: {e}", True)
         finally:
             return self.log
         

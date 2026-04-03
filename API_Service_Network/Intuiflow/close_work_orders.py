@@ -4,6 +4,7 @@ from common.Clients.Intuiflow.IntuiflowApi import get_closed_rope_items
 from common.Utils.Logging import SessionLog
 from common.Utils.Utils import load_query
 from datetime import datetime, timedelta
+from pprint import pprint
 
 # ── Private helpers ───────────────────────────────────────────────────────────
 def _is_valid(val):
@@ -18,8 +19,8 @@ def _check_inventory(order:dict) -> tuple:
     messages = []
     for part_num, cfg in order["PartConfigs"].items():
         failure_msg = (
-            f"Ensure at least {cfg['PartQty']} units of part {part_num} "
-            f"are in its default location or location group."
+            f"Please ensure there are at "
+            f"least {cfg['PartQty']} units of part {part_num} in its default location or location group."
         )
         # FG parts are skipped entirely — inventory is being cycled in for FG, not consumed.
         if cfg["ItemType"] == "FG":
@@ -135,7 +136,7 @@ class CloseWorkOrders:
             if not items:
                 raise Exception("No closed work orders found in Intuiflow in the last 7 days. Nothing to process.")
 
-            self.log.log("_get_intuiflow_closed_orders", "Successfully queried closed rope items from Intuiflow.")
+            self.log.log("Get Closed Orders (Intuiflow)", "Successfully queried closed rope items from Intuiflow.")
 
             for item in items:
                 wo_num = item.get("OrderNumber")
@@ -163,7 +164,7 @@ class CloseWorkOrders:
                         continue
                     if not _is_valid(val):
                         invalid_flag = True
-                        self.log.log("_get_intuiflow_closed_orders", 
+                        self.log.log("Get Closed Orders (Intuiflow)", 
                                      f"Warning: Order {order['WoNum']} will be skipped due to an invalid value for {key}: {val}", True)
                         
                 # assign the validated and parsed order to the correct list
@@ -174,20 +175,20 @@ class CloseWorkOrders:
                         self._completed_orders.append(order)
 
             if len(self._completed_orders) + len(self._scheduler_closed_orders) == 0:
-                self.log.log("_get_intuiflow_closed_orders",
+                self.log.log("Get Closed Orders (Intuiflow)",
                     f"Warning: Detected no valid closed orders from Intuiflow. Nothing to process.", True)
             else:
-                self.log.log("_get_intuiflow_closed_orders",
+                self.log.log("Get Closed Orders (Intuiflow)",
                             f"Successfully parsed {len(self._completed_orders) + len(self._scheduler_closed_orders)} closed orders from Intuiflow.")
         except Exception as e:
-            self.log.log("_get_intuiflow_closed_orders", f"Fatal error: {e}", True)
+            self.log.log("Get Closed Orders (Intuiflow)", f"Fatal error: {e}", True)
             raise
 
     def _delete_fake_closures(self) -> None:
         ''' Unissues and deletes scheduler-closed (fake) MOs from Fishbowl.
         These are orders closed from the scheduler — not genuine completions. '''
         if not self._scheduler_closed_orders:
-            self.log.log("_delete_fake_closures", "There are no scheduler closed orders to process.")
+            self.log.log("Delete Fake Closures", "There are no scheduler closed orders to process.")
             return
         
         try:
@@ -196,14 +197,14 @@ class CloseWorkOrders:
             if not fb.is_logged_in():
                 raise Exception(f"Failed to login to Fishbowl after {fb._login_attemps} attempts.")
             
-            self.log.log("_delete_fake_closures", "Successfully logged into Fishbowl.", auto_print=False)
+            self.log.log("Delete Fake Closures", "Successfully logged into Fishbowl.", auto_print=False)
 
             configs = fb.query(self._query_wo_configs)["data"] or []
             if not configs:
                 # this would imply there are no open MOs in Fishbowl...
                 raise Exception("ClosedWOConfigs Fishbowl query returned no records.")
 
-            self.log.log("_delete_fake_closures", "Successfully queried Fishbowl WO configs.", auto_print=False)
+            self.log.log("Delete Fake Closures", "Successfully queried Fishbowl WO configs.", auto_print=False)
 
             # will need to update this section if allowing multi-line item MOs
             # Create a dict of Fishbowl configs for faster lookup/linking
@@ -225,11 +226,11 @@ class CloseWorkOrders:
                 mo_id = matched_config.get("MoId")
                 mo_status = matched_config.get("MoStatus")
                 if not mo_id:
-                    self.log.log("_delete_fake_closures",
+                    self.log.log("Delete Fake Closures",
                                  f"Warning: MoId missing for order {mo_num} in Fishbowl configs. Skipping.", True)
                     continue
                 if not mo_status:
-                    self.log.log("_delete_fake_closures", 
+                    self.log.log("Delete Fake Closures", 
                                  f"Warning: Status for order {mo_num} is not issued or entered. It will not be closed in Fishbowl.", True)
                     continue
                     
@@ -239,14 +240,14 @@ class CloseWorkOrders:
                     fb.delete_mo(mo_id)
                     deleted += 1
                 except Exception as e:
-                    self.log.log("_delete_fake_closures",
+                    self.log.log("Delete Fake Closures",
                                  f"Failed to delete order {mo_num}: {e}", True)
                     
-            self.log.log("_delete_fake_closures", f"{already_deleted} orders were already deleted.")
-            self.log.log("_delete_fake_closures",
+            self.log.log("Delete Fake Closures", f"{already_deleted} orders were already deleted.")
+            self.log.log("Delete Fake Closures",
                          f"Successfully deleted {deleted} of {len(self._scheduler_closed_orders)} fake closure MOs.")
         except Exception as e:
-            self.log.log("_delete_fake_closures", f"Fatal error: {e}", True)
+            self.log.log("Delete Fake Closures", f"Fatal error: {e}", True)
             raise
         finally:
             if fb:
@@ -256,7 +257,7 @@ class CloseWorkOrders:
         ''' Queries Fishbowl for default part locations on each completed order and filters
         out any orders missing a default location or not found in Fishbowl. '''
         if not self._completed_orders:
-            self.log.log("_check_default_locations", "There are no completed orders to process default locations on.")
+            self.log.log("Check Default Locations", "There are no completed orders to process default locations on.")
             return
         
         try:
@@ -265,7 +266,7 @@ class CloseWorkOrders:
             if not fb.is_logged_in():
                 raise Exception(f"Failed to login to Fishbowl after {fb._login_attemps} attempts.")
 
-            self.log.log("_check_default_locations", "Successfully logged into Fishbowl.", auto_print=False)
+            self.log.log("Check Default Locations", "Successfully logged into Fishbowl.", auto_print=False)
 
             # inject MO numbers into the query via the SQL placeholder
             mo_nums_str = ", ".join(f"'{o['MoNum']}'" for o in self._completed_orders)
@@ -275,7 +276,7 @@ class CloseWorkOrders:
             if not part_def_locations:
                 raise Exception("DefaultLocationCheck query returned no records — no orders can be processed.")
 
-            self.log.log("_check_default_locations", "Successfully queried default part locations in Fishbowl.", auto_print=False)
+            self.log.log("Check Default Locations", "Successfully queried default part locations in Fishbowl.", auto_print=False)
 
             # group rows by MoNumber for O(n) lookup
             locations_by_mo = {}
@@ -298,7 +299,7 @@ class CloseWorkOrders:
                 no_location = False
                 for row in locations:
                     if not row.get("DefaultLocation"):
-                        self.log.log("_check_default_locations",
+                        self.log.log("Check Default Locations",
                                      f"Warning: Part {row.get('PartNum')} on order {mo_num} has no default location. "
                                      f"Order will be skipped for closure.", True)
                         no_location = True
@@ -308,13 +309,13 @@ class CloseWorkOrders:
 
             total_before = len(self._completed_orders)
             self._completed_orders = kept_orders
-            self.log.log("_check_default_locations",
+            self.log.log("Check Default Locations",
                          f"{already_processed} orders have already been processed. ")
-            self.log.log("_check_default_locations",
+            self.log.log("Check Default Locations",
                          f"{len(kept_orders)} of {total_before} completed orders have not been closed yet and have valid \
                          default locations for each part.")
         except Exception as e:
-            self.log.log("_check_default_locations", f"Fatal error: {e}", True)
+            self.log.log("Check Default Locations", f"Fatal error: {e}", True)
             raise
         finally:
             if fb:
@@ -336,17 +337,17 @@ class CloseWorkOrders:
                 part_num = part_config.get("PartNum")
                 for field in required:
                     if not _is_valid(part_config.get(field)):
-                        self.log.log("_parse_part_configs",
+                        self.log.log("Parse Part Configs",
                                         f"Order {mo_num} for part {part_num}: "
                                         f"field '{field}' is invalid. Skipping order.", True)
                         return
                     if field == "PartQty" and float(part_config[field]) < 0:
-                        self.log.log("_parse_part_configs",
+                        self.log.log("Parse Part Configs",
                                         f"Order {mo_num}, part {part_num}: "
                                         f"'{field}' is not a valid number. Skipping order.", True)
                         return
                     if field == "OrderQty" and float(part_config[field]) < 0:
-                        self.log.log("_parse_part_configs",
+                        self.log.log("Parse Part Configs",
                                         f"Order {mo_num}, part {part_num}: "
                                         f"'{field}' is not a valid number. Skipping order.", True)
                         return
@@ -387,7 +388,7 @@ class CloseWorkOrders:
             order["QtyOrdered"] = round(float(matched_configs[0]["OrderQty"]), 5)
             return order
         except Exception as e:
-            self.log.log("_parse_part_configs", f"Skipping order due to error: {e}", True)
+            self.log.log("Parse Part Configs", f"Skipping order due to error: {e}", True)
             return
 
     def _process_real_closures(self) -> None:
@@ -395,7 +396,7 @@ class CloseWorkOrders:
         cycles inventory, and deletes the MO. Rolls back inventory and re-issues the MO
         if any cycle fails. """
         if not self._completed_orders:
-            self.log.log("_process_real_closures", "No completed orders to process.")
+            self.log.log("Process Real Closures", "No completed orders to process.")
             return
         
         try:
@@ -404,13 +405,13 @@ class CloseWorkOrders:
             if not fb.is_logged_in():
                 raise Exception(f"Failed to login to Fishbowl after {fb._login_attemps} attempts.")
 
-            self.log.log("_process_real_closures", "Successfully logged into Fishbowl.", auto_print=False)
+            self.log.log("Process Real Closures", "Successfully logged into Fishbowl.", auto_print=False)
 
             configs = fb.query(self._query_wo_configs)["data"] or []
             if not configs:
                 raise Exception("ClosedWOConfigs query returned no records.")
 
-            self.log.log("_process_real_closures", "Successfully queried Fishbowl WO configs.", auto_print=False)
+            self.log.log("Process Real Closures", "Successfully queried Fishbowl WO configs.", auto_print=False)
 
             # group config rows by MoNumber — multiple parts per MO (one per part per location)
             # this section will need to be updated to accomodate multi-line MOs in the future
@@ -438,7 +439,7 @@ class CloseWorkOrders:
                 inv_ok, inv_messages = _check_inventory(hydrated_order)
                 if not inv_ok:
                     self.short_inventory[mo_num] = inv_messages
-                    self.log.log("_process_real_closures",
+                    self.log.log("Process Real Closures",
                                  f"Order {mo_num} has insufficient inventory. Skipping.", True)
                     continue
 
@@ -446,7 +447,7 @@ class CloseWorkOrders:
                 # create the list of inventory cycles based on part qtys needed and order qtys completed
                 cycles = _aggregate_cycles(hydrated_order)
                 if cycles is None:
-                    self.log.log("_process_real_closures",
+                    self.log.log("Process Real Closures",
                                  f"Order {mo_num} has an unknown part ItemType. Skipping.", True)
                     continue
 
@@ -454,7 +455,7 @@ class CloseWorkOrders:
                 try:
                     fb.unissue_mo(hydrated_order["MoId"])
                 except Exception as e:
-                    self.log.log("_process_real_closures",
+                    self.log.log("Process Real Closures",
                                  f"Failed to unissue MO {mo_num}. Skipping. {e}", True)
                     continue
 
@@ -467,8 +468,8 @@ class CloseWorkOrders:
                         fb.cycle_part_inventory(int(cycle["PartId"]), payload)
                         completed_cycles.append(cycle)
                     except Exception as e:
-                        self.log.log("_process_real_closures",
-                                     f"Cycle failed for order {mo_num}, part {cycle['PartId']}: {e}. "
+                        self.log.log("Process Real Closures",
+                                     f"Cycle failed for order {mo_num}, part ID {cycle['PartId']}: {e}. "
                                      f"Rolling back {len(completed_cycles)} completed cycle(s).", True)
                         cycle_failed = True
                         break
@@ -477,19 +478,23 @@ class CloseWorkOrders:
                     # rollback all completed cycles
                     for cycle in completed_cycles:
                         try:
+                            if not fb.is_logged_in():
+                                fb = FishbowlSession(self._is_fb_test_db)
                             payload = _build_cycle_payload(cycle, is_rollback=True)
                             fb.cycle_part_inventory(int(cycle["PartId"]), payload)
                         except Exception as e:
-                            self.log.log("_process_real_closures",
+                            self.log.log("Process Real Closures",
                                          f"CRITICAL: Rollback failed for order {mo_num}, part {cycle['PartId']}: {e}. "
                                          f"Manual correction required: {cycle}", True)
                     # re-issue the MO to restore it (regardless of rollback outcome)
                     try:
+                        if not fb.is_logged_in():
+                            fb = FishbowlSession(self._is_fb_test_db)
                         fb.issue_mo(hydrated_order["MoId"])
-                        self.log.log("_process_real_closures",
+                        self.log.log("Process Real Closures",
                                      f"Warning: Order {mo_num} had inventory partially cycled then rolled back. MO re-issued.", True)
                     except Exception as e:
-                        self.log.log("_process_real_closures",
+                        self.log.log("Process Real Closures",
                                      f"CRITICAL: Order {mo_num} rollback complete but re-issue failed. "
                                      f"Please manually re-issue MO {mo_num}. {e}", True)
                     finally:
@@ -497,33 +502,39 @@ class CloseWorkOrders:
 
                 # ── Delete MO ─────────────────────────────────────────────────
                 try:
+                    if not fb.is_logged_in():
+                        fb = FishbowlSession(self._is_fb_test_db)
                     fb.delete_mo(hydrated_order["MoId"])
                     orders_deleted += 1
                 except Exception as e:
                     # inventory was already cycled — must rollback and re-issue
-                    self.log.log("_process_real_closures",
+                    self.log.log("Process Real Closures",
                                  f"Delete failed for order {mo_num} after inventory was cycled. "
                                  f"Rolling back inventory. {e}", True)
                     for cycle in completed_cycles:
                         try:
+                            if not fb.is_logged_in():
+                                fb = FishbowlSession(self._is_fb_test_db)
                             payload = _build_cycle_payload(cycle, is_rollback=True)
                             fb.cycle_part_inventory(int(cycle["PartId"]), payload)
                         except Exception as re:
-                            self.log.log("_process_real_closures",
+                            self.log.log("Process Real Closures",
                                          f"CRITICAL: Rollback failed for order {mo_num}, part {cycle['PartId']}: {re}. "
                                          f"Manual correction required: {cycle}", True)
                     try:
+                        if not fb.is_logged_in():
+                            fb = FishbowlSession(self._is_fb_test_db)
                         fb.issue_mo(hydrated_order["MoId"])
                     except Exception as ie:
-                        self.log.log("_process_real_closures",
+                        self.log.log("Process Real Closures",
                                      f"CRITICAL: Order {mo_num} inventory rolled back but re-issue failed. "
                                      f"Please manually re-issue MO {mo_num}. {ie}", True)
             
-            self.log.log("_process_real_closures", f"{already_deleted} orders were already cycled and deleted.")
-            self.log.log("_process_real_closures",
+            self.log.log("Process Real Closures", f"{already_deleted} orders were already cycled and deleted.")
+            self.log.log("Process Real Closures",
                          f"Successfully cycled and deleted {orders_deleted} of {len(self._completed_orders)} completed orders.")
         except Exception as e:
-            self.log.log("_process_real_closures", f"Fatal error: {e}", True)
+            self.log.log("Process Real Closures", f"Fatal error: {e}", True)
             raise
         finally:
             if fb:
@@ -542,6 +553,6 @@ class CloseWorkOrders:
             # cycle inventory and delete MOs for all genuine completions
             self._process_real_closures()
         except Exception as e:
-            self.log.log("auto_run", str(e), True)
+            self.log.log("Auto Run", str(e), True)
         finally:
             return self.log
