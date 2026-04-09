@@ -358,16 +358,12 @@ class CloseWorkOrders:
                 mo_id = int(part_config["MoId"])
                 qty_on_hand = part_config["QtyOnHand"]
                 part_id = int(part_config["PartId"])
-                location_id = int(part_config["InvLocationId"])
+                location_id = int(part_config["InvLocationId"]) if part_config["InvLocationId"] != "INSUFFICIENT INVENTORY" else part_config["InvLocationId"]
                 key = (part_id, location_id)
-                
+
                 if key in running_inv:
                     # inventory for this part has already been cycled by previous order in call stack.
-                    old_qoh = qty_on_hand if qty_on_hand == "INSUFFICIENT INVENTORY" else round(float(qty_on_hand), 5)
                     qty_on_hand = running_inv.get(key)
-                    print(f"\n{part_num} HAS ALREADY BEEN CYCLED IN LOCATION ID: {location_id}"
-                        f"QOH HAS BEEN OVERWRITTEN FROM {old_qoh} TO {qty_on_hand}. "
-                        f"THIS IMPLIES THAT {abs(old_qoh-qty_on_hand)} UNITS WERE CYCLED IN PREVIOUS ORDERS.\n")
                 else:
                     qty_on_hand = qty_on_hand if qty_on_hand == "INSUFFICIENT INVENTORY" else round(float(qty_on_hand), 5)
 

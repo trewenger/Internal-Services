@@ -5,6 +5,7 @@ from common.Clients.Intuiflow.IntuiflowApi import (
 )
 from common.Utils.Logging import SessionLog
 from common.Utils.Utils import load_query
+import time
 
 # ── Public entry point ─────────────────────────────────────────────────────────
 
@@ -291,12 +292,14 @@ class UploadFbFiles:
         try:
             # query Fishbowl for all six file datasets in a single session
             self._query_fishbowl()
-            # upload demand history alone (Mode=Update)
-            if self._demand_history:
-                self._upload_standalone("DemandArchive", self._demand_history)
             # upload part alone (Mode=Update)
             if self._part:
                 self._upload_standalone("Part", self._part)
+                print("Waiting 10 seconds to ensure file is loaded.")
+                time.sleep(15)
+            # upload demand history alone (Mode=Update)
+            if self._demand_history:
+                self._upload_standalone("DemandArchive", self._demand_history)
             # upload BoM, supply order, demand order, and inventory as a group (Mode=Replace)
             self._upload_group([
                 ("BillOfMaterial", self._bom),
