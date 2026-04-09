@@ -57,31 +57,38 @@ class UploadFbFiles:
             parse_msgs   = list({m for m in (item.get("ParsingErrors")     or [])})
             count_msg    = len(item.get("ParsingErrors") or []) + len(item.get("ValidationResults") or [])
 
-            if file_name not in expected_files:
+            # demand history exception, Intuiflow calls this both file names, need to accept both.
+            is_demand_history = file_name in ("DemandHistory", "DemandArchive")
+            adjusted_name = file_name
+            if is_demand_history:
+                alt_name = "DemandArchive" if file_name == "DemandHistory" else "DemandHistory"
+                adjusted_name = alt_name if alt_name in expected_files else file_name
+                            
+            if adjusted_name not in expected_files:
                 self.log.log(context, f"Validation returned unrecognized file name: '{file_name}'.", True)
                 all_passed = False
                 continue
 
-            expected_count = expected_files[file_name]
+            expected_count = expected_files[adjusted_name]
             if record_count is not None and int(record_count) != int(expected_count):
                 self.log.log(context,
-                        f"Record count mismatch for {file_name}: "
+                        f"Record count mismatch for {adjusted_name}: "
                         f"expected {expected_count}, Intuiflow returned {record_count}.", True)
                 all_passed = False
             elif processed == 0:
                 self.log.log(context,
-                        f"Validation failed for {file_name}: 0 records processed "
+                        f"Validation failed for {adjusted_name}: 0 records processed "
                         f"({ignored} ignored). Messages: {val_msgs + parse_msgs}", True)
                 all_passed = False
             elif ignored > 0:
                 self.log.log(context,
-                        f"Warning: Validated {processed} of {record_count} records for {file_name} "
+                        f"Warning: Validated {processed} of {record_count} records for {adjusted_name} "
                         f"({ignored} records ignored). Messages: {val_msgs + parse_msgs}", True)
                 all_passed = False
             else:
                 self.log.log(context, 
-                             f"Successfully validated {processed} of {expected_count} records for {file_name} "
-                             f"with {count_msg} total warning messages. All records will be imported.")
+                             f"Successfully validated {processed} of {expected_count} records for {adjusted_name}. "
+                             f"All records will be imported.")
                 tot_msg = val_msgs + parse_msgs
                 if tot_msg:
                     self.log.log(context, 
@@ -115,7 +122,7 @@ class UploadFbFiles:
                 return {"Data": rows, "Mode": mode, "RecordCount": len(rows)}
 
 
-            self._demand_history = _run("DemandHistory",   self._sql_demand_history, "Update")
+            self._demand_history = _run("DemandArchive",   self._sql_demand_history, "Update")
             self._part           = _run("Part",            self._sql_part,           "Update")
             self._bom            = _run("BillOfMaterials", self._sql_bom,            "Replace")
             self._supply_order   = _run("SupplyOrder",     self._sql_supply_order,   "Replace")
@@ -172,7 +179,7 @@ class UploadFbFiles:
                 raise Exception(f"Upload item did not confirm 'Identified' status for {file_name}. Ending call stack.")
 
             self.log.log(f"Upload Standalone: {upload_type} - {file_name}", 
-                         f"Successfully uploaded the import item/file to import ID: {import_id}.")
+                         f"Successfully uploaded the {file_name} to import ID: {import_id}.")
 
             # ------------------------ validate -------------------
             resp  = validate_import(import_id, is_test_environment=self._is_intuiflow_test)

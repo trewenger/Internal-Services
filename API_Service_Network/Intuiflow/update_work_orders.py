@@ -7,6 +7,7 @@ from common.Clients.Intuiflow.IntuiflowApi import (
 from common.Utils.Logging import SessionLog
 from common.Utils.Utils import load_query
 from datetime import datetime, timedelta
+from pprint import pprint
 
 # ── Private helpers ───────────────────────────────────────────────────────────
 def _is_valid(val):
@@ -157,6 +158,9 @@ class UpdateWorkOrders:
                 if not first_op:
                     self.log.log("Get Open Rope Items (Intuiflow)", 
                                  f"Warning: No rope items for order {order['OrderNum']}. Start date will not be updated.", True)
+                    print()
+                    pprint(matched_ops)
+                    print()
                     order["StartDate"] = "NA"
                     continue
 
