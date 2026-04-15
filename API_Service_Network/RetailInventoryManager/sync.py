@@ -12,6 +12,7 @@ import threading
 from datetime import date
 
 SALES_CHECK_LOCK = threading.Lock()
+SYNC_LOCK        = threading.Lock()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -307,8 +308,11 @@ class FishbowlSync:
 
     def determine_sync(self) -> Dict:
         '''
-        Main logic to determine the sync. Called by the sync now button and the scheduler jobs. 
+        Main logic to determine the sync. Called by the sync now button and the scheduler jobs.
         '''
+        if not SYNC_LOCK.acquire(blocking=False):
+            logger.info("Sync skipped: already running")
+            return {'success': False, 'error': 'Sync is already running'}
         try:
             # Check inventory method
             config = self.data.get_config()
@@ -335,6 +339,8 @@ class FishbowlSync:
                 'success': False,
                 'error': str(e)
             }
+        finally:
+            SYNC_LOCK.release()
 
     def run_sales_check(self) -> Dict:
         '''
