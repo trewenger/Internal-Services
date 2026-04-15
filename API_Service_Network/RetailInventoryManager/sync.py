@@ -142,7 +142,7 @@ class FishbowlSync:
                         so.dateissued >= '{since_str}'
                         AND so.statusid NOT IN (60, 70, 80, 85, 90, 95)
                         AND soitem.statusid NOT IN (50, 60, 70, 75, 95)
-                        -- AND so.createdbyuserid IN (95, 25)
+                        AND so.createdbyuserid IN (95, 25)
                     GROUP BY product.num
                     ;
                     '''
