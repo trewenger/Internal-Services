@@ -256,7 +256,7 @@
                  class="{{ '' if cfg.schedule_type == 'cron' and cfg.schedule_cron and 'day_of_week' not in cfg.schedule_cron else 'hidden' }}">
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Time</label>
                 <input type="time" id="daily-time-{{ name }}"
-                       value="{{ '%02d:%02d' % (cfg.schedule_cron.hour, cfg.schedule_cron.minute) if cfg.schedule_cron and 'hour' in cfg.schedule_cron else '' }}"
+                       value="{{ '%02d:%02d' % (cfg.schedule_cron.hour | int, cfg.schedule_cron.minute | int) if cfg.schedule_cron and 'hour' in cfg.schedule_cron else '' }}"
                        class="border rounded py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
 
@@ -279,7 +279,7 @@
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Time</label>
                         <input type="time" id="weekly-time-{{ name }}"
-                               value="{{ '%02d:%02d' % (cfg.schedule_cron.hour, cfg.schedule_cron.minute) if cfg.schedule_cron and 'hour' in cfg.schedule_cron else '' }}"
+                               value="{{ '%02d:%02d' % (cfg.schedule_cron.hour | int, cfg.schedule_cron.minute | int) if cfg.schedule_cron and 'hour' in cfg.schedule_cron else '' }}"
                                class="border rounded py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                 </div>

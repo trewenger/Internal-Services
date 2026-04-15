@@ -44,6 +44,7 @@ _HEADER_IMG = _load_img('radian_header.png')
 _FOOTER_IMG = _load_img('radian_footer.jpg')
 
 _PIPELINE_NAMES = {'full-sync', 'partial-sync'}
+_pipeline_lock  = threading.Lock()  # one pipeline at a time; modules blocked while held
 _ALL_NAMES = {
     'full-sync', 'partial-sync',
     'upload-fb-files', 'update-work-orders', 'close-work-orders', 'import-pending-orders',
@@ -247,168 +248,196 @@ def _maybe_notify_short_inventory(cfg:dict, short_inventory:dict) -> None:
 # ============================================================================
 
 def run_full_sync(triggered_by:str='scheduler') -> None:
-    intuiflow_config.set_running('full-sync', True)
-    cfg             = intuiflow_config.get('full-sync')
-    short_inventory = {}
-    combined_log    = {}
-    all_success     = True
-    
+    _pipeline_lock.acquire()  # blocking — waits if partial-sync is running
     try:
-        log_obj = ImportPendingOrders().auto_run()
-        if log_obj.error_flag() != 0:
-            combined_log["Import Pending Orders to Fishbowl (ISSUES)"] = log_obj.get_log()
-            all_success = False
-        else:
-            combined_log["Import Pending Orders to Fishbowl (SUCCESS)"] = log_obj.get_log()
-    except Exception as e:
-        all_success = False
-        combined_log['import-pending-orders: fatal'] = [str(e)]
-        logger.error(f'full-sync: import-pending-orders failed: {e}')
+        intuiflow_config.set_running('full-sync', True)
+        cfg             = intuiflow_config.get('full-sync')
+        short_inventory = {}
+        combined_log    = {}
+        all_success     = True
 
-    try:
-        log_obj = UpdateWorkOrders().auto_run()
-        if log_obj.error_flag() != 0:
-            combined_log["Update Fishbowl WO Data (ISSUES)"] = log_obj.get_log()
+        try:
+            log_obj = ImportPendingOrders().auto_run()
+            if log_obj.error_flag() != 0:
+                combined_log["Import Pending Orders to Fishbowl (ISSUES)"] = log_obj.get_log()
+                all_success = False
+            else:
+                combined_log["Import Pending Orders to Fishbowl (SUCCESS)"] = log_obj.get_log()
+        except Exception as e:
             all_success = False
-        else:
-            combined_log["Update Fishbowl WO Data (SUCCESS)"] = log_obj.get_log()
-    except Exception as e:
-        all_success = False
-        combined_log['update-work-orders: fatal'] = [str(e)]
-        logger.error(f'full-sync: update-work-orders failed: {e}')
+            combined_log['import-pending-orders: fatal'] = [str(e)]
+            logger.error(f'full-sync: import-pending-orders failed: {e}')
 
-    try:
-        module          = CloseWorkOrders()
-        log_obj         = module.auto_run()
-        short_inventory = module.short_inventory or {}
-        if log_obj.error_flag() != 0:
-            combined_log["Close Fishbowl WOs (ISSUES)"] = log_obj.get_log()
+        try:
+            log_obj = UpdateWorkOrders().auto_run()
+            if log_obj.error_flag() != 0:
+                combined_log["Update Fishbowl WO Data (ISSUES)"] = log_obj.get_log()
+                all_success = False
+            else:
+                combined_log["Update Fishbowl WO Data (SUCCESS)"] = log_obj.get_log()
+        except Exception as e:
             all_success = False
-        else:
-            combined_log["Close Fishbowl WOs (SUCCESS)"] = log_obj.get_log()
-    except Exception as e:
-        all_success = False
-        combined_log['close-work-orders: fatal'] = [str(e)]
-        logger.error(f'full-sync: close-work-orders failed: {e}')
+            combined_log['update-work-orders: fatal'] = [str(e)]
+            logger.error(f'full-sync: update-work-orders failed: {e}')
 
-    try:
-        log_obj = UploadFbFiles().auto_run()
-        if log_obj.error_flag() != 0:
-            combined_log["File Upload to Intuiflow (ISSUES)"] = log_obj.get_log()
+        try:
+            module          = CloseWorkOrders()
+            log_obj         = module.auto_run()
+            short_inventory = module.short_inventory or {}
+            if log_obj.error_flag() != 0:
+                combined_log["Close Fishbowl WOs (ISSUES)"] = log_obj.get_log()
+                all_success = False
+            else:
+                combined_log["Close Fishbowl WOs (SUCCESS)"] = log_obj.get_log()
+        except Exception as e:
             all_success = False
-        else:
-            combined_log["File Upload to Intuiflow (SUCCESS)"] = log_obj.get_log()
-    except Exception as e:
-        all_success = False
-        combined_log['upload-fb-files: fatal'] = [str(e)]
-        logger.error(f'full-sync: upload-fb-files failed: {e}')
+            combined_log['close-work-orders: fatal'] = [str(e)]
+            logger.error(f'full-sync: close-work-orders failed: {e}')
 
-    intuiflow_config.save_result('full-sync', all_success)
-    intuiflow_log.append_run('full-sync', 'success' if all_success else 'error', triggered_by, combined_log)
-    _maybe_notify(cfg, all_success, combined_log)
-    _maybe_notify_short_inventory(cfg, short_inventory)
+        try:
+            log_obj = UploadFbFiles().auto_run()
+            if log_obj.error_flag() != 0:
+                combined_log["File Upload to Intuiflow (ISSUES)"] = log_obj.get_log()
+                all_success = False
+            else:
+                combined_log["File Upload to Intuiflow (SUCCESS)"] = log_obj.get_log()
+        except Exception as e:
+            all_success = False
+            combined_log['upload-fb-files: fatal'] = [str(e)]
+            logger.error(f'full-sync: upload-fb-files failed: {e}')
+
+        intuiflow_config.save_result('full-sync', all_success)
+        intuiflow_log.append_run('full-sync', 'success' if all_success else 'error', triggered_by, combined_log)
+        _maybe_notify(cfg, all_success, combined_log)
+        _maybe_notify_short_inventory(cfg, short_inventory)
+    finally:
+        _pipeline_lock.release()
 
 def run_partial_sync(triggered_by:str='scheduler') -> None:
-    intuiflow_config.set_running('partial-sync', True)
-    cfg             = intuiflow_config.get('partial-sync')
-    short_inventory = {}
-    combined_log    = {}
-    all_success     = True
-
+    _pipeline_lock.acquire()  # blocking — waits if full-sync is running
     try:
-        log_obj = UpdateWorkOrders().auto_run()
-        if log_obj.error_flag() != 0:
-            combined_log["Update Fishbowl WO Data (ISSUES)"] = log_obj.get_log()
-            all_success = False
-        else:
-            combined_log["Update Fishbowl WO Data (SUCCESS)"] = log_obj.get_log()
-    except Exception as e:
-        all_success = False
-        combined_log['update-work-orders: fatal'] = [str(e)]
-        logger.error(f'partial-sync: update-work-orders failed: {e}')
+        intuiflow_config.set_running('partial-sync', True)
+        cfg             = intuiflow_config.get('partial-sync')
+        short_inventory = {}
+        combined_log    = {}
+        all_success     = True
 
-    try:
-        module          = CloseWorkOrders()
-        log_obj         = module.auto_run()
-        short_inventory = module.short_inventory or {}
-        if log_obj.error_flag() != 0:
-            combined_log["Close Fishbowl WOs (ISSUES)"] = log_obj.get_log()
+        try:
+            log_obj = UpdateWorkOrders().auto_run()
+            if log_obj.error_flag() != 0:
+                combined_log["Update Fishbowl WO Data (ISSUES)"] = log_obj.get_log()
+                all_success = False
+            else:
+                combined_log["Update Fishbowl WO Data (SUCCESS)"] = log_obj.get_log()
+        except Exception as e:
             all_success = False
-        else:
-            combined_log["Close Fishbowl WOs (SUCCESS)"] = log_obj.get_log()
-    except Exception as e:
-        all_success = False
-        combined_log['close-work-orders: fatal'] = [str(e)]
-        logger.error(f'partial-sync: close-work-orders failed: {e}')
+            combined_log['update-work-orders: fatal'] = [str(e)]
+            logger.error(f'partial-sync: update-work-orders failed: {e}')
 
-    intuiflow_config.save_result('partial-sync', all_success)
-    intuiflow_log.append_run('partial-sync', 'success' if all_success else 'error', triggered_by, combined_log)
-    _maybe_notify(cfg, all_success, combined_log)
-    _maybe_notify_short_inventory(cfg, short_inventory)
+        try:
+            module          = CloseWorkOrders()
+            log_obj         = module.auto_run()
+            short_inventory = module.short_inventory or {}
+            if log_obj.error_flag() != 0:
+                combined_log["Close Fishbowl WOs (ISSUES)"] = log_obj.get_log()
+                all_success = False
+            else:
+                combined_log["Close Fishbowl WOs (SUCCESS)"] = log_obj.get_log()
+        except Exception as e:
+            all_success = False
+            combined_log['close-work-orders: fatal'] = [str(e)]
+            logger.error(f'partial-sync: close-work-orders failed: {e}')
+
+        intuiflow_config.save_result('partial-sync', all_success)
+        intuiflow_log.append_run('partial-sync', 'success' if all_success else 'error', triggered_by, combined_log)
+        _maybe_notify(cfg, all_success, combined_log)
+        _maybe_notify_short_inventory(cfg, short_inventory)
+    finally:
+        _pipeline_lock.release()
 
 def run_upload_fb_files(triggered_by:str='manual') -> None:
-    intuiflow_config.set_running('upload-fb-files', True)
-    cfg = intuiflow_config.get('upload-fb-files')
+    if not _pipeline_lock.acquire(blocking=False):
+        logger.info('upload-fb-files blocked: a sync pipeline is currently running')
+        return
     try:
-        log_obj  = UploadFbFiles().auto_run()
-        is_success  = log_obj.error_flag() == 0
-        log_data = {"File Upload to Intuiflow": log_obj.get_log()}
-    except Exception as e:
-        is_success, log_data = False, {'error': [str(e)]}
-        logger.error(f'upload-fb-files failed: {e}')
-
-    intuiflow_config.save_result('upload-fb-files', is_success)
-    intuiflow_log.append_run('upload-fb-files', 'success' if is_success else 'error', triggered_by, log_data)
-    _maybe_notify(cfg, is_success, log_data)
+        intuiflow_config.set_running('upload-fb-files', True)
+        cfg = intuiflow_config.get('upload-fb-files')
+        try:
+            log_obj    = UploadFbFiles().auto_run()
+            is_success = log_obj.error_flag() == 0
+            log_data   = {"File Upload to Intuiflow": log_obj.get_log()}
+        except Exception as e:
+            is_success, log_data = False, {'error': [str(e)]}
+            logger.error(f'upload-fb-files failed: {e}')
+        intuiflow_config.save_result('upload-fb-files', is_success)
+        intuiflow_log.append_run('upload-fb-files', 'success' if is_success else 'error', triggered_by, log_data)
+        _maybe_notify(cfg, is_success, log_data)
+    finally:
+        _pipeline_lock.release()
 
 def run_update_work_orders(triggered_by:str='manual') -> None:
-    intuiflow_config.set_running('update-work-orders', True)
-    cfg = intuiflow_config.get('update-work-orders')
+    if not _pipeline_lock.acquire(blocking=False):
+        logger.info('update-work-orders blocked: a sync pipeline is currently running')
+        return
     try:
-        log_obj  = UpdateWorkOrders().auto_run()
-        is_success  = log_obj.error_flag() == 0
-        log_data = {"Update Fishbowl WO Data": log_obj.get_log()}
-    except Exception as e:
-        is_success, log_data = False, {'error': [str(e)]}
-        logger.error(f'update-work-orders failed: {e}')
-
-    intuiflow_config.save_result('update-work-orders', is_success)
-    intuiflow_log.append_run('update-work-orders', 'success' if is_success else 'error', triggered_by, log_data)
-    _maybe_notify(cfg, is_success, log_data)
+        intuiflow_config.set_running('update-work-orders', True)
+        cfg = intuiflow_config.get('update-work-orders')
+        try:
+            log_obj    = UpdateWorkOrders().auto_run()
+            is_success = log_obj.error_flag() == 0
+            log_data   = {"Update Fishbowl WO Data": log_obj.get_log()}
+        except Exception as e:
+            is_success, log_data = False, {'error': [str(e)]}
+            logger.error(f'update-work-orders failed: {e}')
+        intuiflow_config.save_result('update-work-orders', is_success)
+        intuiflow_log.append_run('update-work-orders', 'success' if is_success else 'error', triggered_by, log_data)
+        _maybe_notify(cfg, is_success, log_data)
+    finally:
+        _pipeline_lock.release()
 
 def run_close_work_orders(triggered_by:str='manual') -> None:
-    intuiflow_config.set_running('close-work-orders', True)
-    cfg             = intuiflow_config.get('close-work-orders')
-    short_inventory = {}
+    if not _pipeline_lock.acquire(blocking=False):
+        logger.info('close-work-orders blocked: a sync pipeline is currently running')
+        return
     try:
-        module          = CloseWorkOrders()
-        log_obj         = module.auto_run()
-        short_inventory = module.short_inventory or {}
-        is_success         = log_obj.error_flag() == 0
-        log_data = {"Close Fishbowl WOs": log_obj.get_log()}
-    except Exception as e:
-        is_success, log_data = False, {'error': [str(e)]}
-        logger.error(f'close-work-orders failed: {e}')
-
-    intuiflow_config.save_result('close-work-orders', is_success)
-    intuiflow_log.append_run('close-work-orders', 'success' if is_success else 'error', triggered_by, log_data)
-    _maybe_notify(cfg, is_success, log_data)
-    _maybe_notify_short_inventory(cfg, short_inventory)
+        intuiflow_config.set_running('close-work-orders', True)
+        cfg             = intuiflow_config.get('close-work-orders')
+        short_inventory = {}
+        try:
+            module          = CloseWorkOrders()
+            log_obj         = module.auto_run()
+            short_inventory = module.short_inventory or {}
+            is_success      = log_obj.error_flag() == 0
+            log_data        = {"Close Fishbowl WOs": log_obj.get_log()}
+        except Exception as e:
+            is_success, log_data = False, {'error': [str(e)]}
+            logger.error(f'close-work-orders failed: {e}')
+        intuiflow_config.save_result('close-work-orders', is_success)
+        intuiflow_log.append_run('close-work-orders', 'success' if is_success else 'error', triggered_by, log_data)
+        _maybe_notify(cfg, is_success, log_data)
+        _maybe_notify_short_inventory(cfg, short_inventory)
+    finally:
+        _pipeline_lock.release()
 
 def run_import_pending_orders(triggered_by:str='manual') -> None:
-    intuiflow_config.set_running('import-pending-orders', True)
-    cfg = intuiflow_config.get('import-pending-orders')
+    if not _pipeline_lock.acquire(blocking=False):
+        logger.info('import-pending-orders blocked: a sync pipeline is currently running')
+        return
     try:
-        log_obj  = ImportPendingOrders().auto_run()
-        is_success  = log_obj.error_flag() == 0
-        log_data = {"Import Pending Orders to Fishbowl": log_obj.get_log()}
-    except Exception as e:
-        is_success, log_data = False, {'error': [str(e)]}
-        logger.error(f'import-pending-orders failed: {e}')
-
-    intuiflow_config.save_result('import-pending-orders', is_success)
-    intuiflow_log.append_run('import-pending-orders', 'success' if is_success else 'error', triggered_by, log_data)
-    _maybe_notify(cfg, is_success, log_data)
+        intuiflow_config.set_running('import-pending-orders', True)
+        cfg = intuiflow_config.get('import-pending-orders')
+        try:
+            log_obj    = ImportPendingOrders().auto_run()
+            is_success = log_obj.error_flag() == 0
+            log_data   = {"Import Pending Orders to Fishbowl": log_obj.get_log()}
+        except Exception as e:
+            is_success, log_data = False, {'error': [str(e)]}
+            logger.error(f'import-pending-orders failed: {e}')
+        intuiflow_config.save_result('import-pending-orders', is_success)
+        intuiflow_log.append_run('import-pending-orders', 'success' if is_success else 'error', triggered_by, log_data)
+        _maybe_notify(cfg, is_success, log_data)
+    finally:
+        _pipeline_lock.release()
 
 
 _RUNNERS = {
@@ -506,6 +535,11 @@ def run_now(name):
     cfg = intuiflow_config.get(name)
     if cfg.get('running'):
         return jsonify({'error': f'{cfg["label"]} is already running'}), 409
+    if name not in _PIPELINE_NAMES:
+        full_cfg    = intuiflow_config.get('full-sync')
+        partial_cfg = intuiflow_config.get('partial-sync')
+        if full_cfg.get('running') or partial_cfg.get('running'):
+            return jsonify({'error': 'A sync pipeline is currently running. Individual modules cannot be started until it completes.'}), 409
     runner = _RUNNERS[name]
     threading.Thread(target=runner, kwargs={'triggered_by': 'manual'}, daemon=True).start()
     return jsonify({'success': True, 'message': f'{cfg["label"]} started'})
