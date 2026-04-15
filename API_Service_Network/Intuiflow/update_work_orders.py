@@ -7,7 +7,6 @@ from common.Clients.Intuiflow.IntuiflowApi import (
 from common.Utils.Logging import SessionLog
 from common.Utils.Utils import load_query
 from datetime import datetime, timedelta
-from pprint import pprint
 
 # ── Private helpers ───────────────────────────────────────────────────────────
 def _is_valid(val):
@@ -158,9 +157,6 @@ class UpdateWorkOrders:
                 if not first_op:
                     self.log.log("Get Open Rope Items (Intuiflow)", 
                                  f"Warning: No rope items for order {order['OrderNum']}. Start date will not be updated.", True)
-                    print()
-                    pprint(matched_ops)
-                    print()
                     order["StartDate"] = "NA"
                     continue
 
@@ -169,7 +165,7 @@ class UpdateWorkOrders:
                 sso = first_op.get("ScheduledStartOperation") if _is_valid(first_op.get("ScheduledStartOperation")) else None
                 srb = first_op.get("ScheduledReceiptAtBuffer") if _is_valid(first_op.get("ScheduledReceiptAtBuffer")) else None
 
-                # order start date set to first operations scheduled start its valid and if its earlier than the order's promise_date
+                # order start date set to first operations scheduled start if valid and if its earlier than the order's promise_date
                 # start date cannot be earlier than the order's promise date in Fishbowl
                 if sso and promise_date and sso[:10] <= promise_date:
                     updated_start_dates += 1

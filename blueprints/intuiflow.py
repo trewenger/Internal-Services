@@ -488,6 +488,12 @@ def index():
     return render_template('intuiflow/index.html', config=config)
 
 
+@intuiflow_bp.route('/how-to')
+@access_required('intuiflow')
+def how_to():
+    return render_template('intuiflow/how_to.html')
+
+
 # ============================================================================
 # Routes — run, status, logs, config
 # ============================================================================

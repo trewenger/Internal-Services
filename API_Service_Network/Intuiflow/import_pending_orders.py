@@ -167,7 +167,6 @@ class ImportPendingOrders:
                 return
 
             self.log.log("Get Pending Orders", "Successfully queried pending orders from Intuiflow.")
-
             for order in orders:
                 order_type = order.get("OrderType")
 
@@ -179,9 +178,11 @@ class ImportPendingOrders:
                     bom_name     = order.get("BOMName")    or None
 
                     # Fishbowl requires StartDate ≤ DueDate and StartDate ≤ PromiseDate
-                    if start_date and due_date and start_date > due_date:
-                        due_date = start_date
+                    #if start_date and due_date and start_date > due_date:
+                    #    print(f"DUE DATE IS MODIFIED: {due_date} ---> {start_date} ")
+                    #    due_date = start_date
                     if start_date and promise_date and start_date > promise_date:
+                        print(f"PROMISE DATE IS MODIFIED: {promise_date} ---> {start_date} ")
                         promise_date = start_date
 
                     wo = {
@@ -199,7 +200,6 @@ class ImportPendingOrders:
                     }
                     self._work_orders.append(wo)
                     self._all_orders.append(wo)
-
                 elif order_type == 1:   # purchase order
                     po = {
                         "DateScheduled":  order.get("DueDate"),

@@ -137,6 +137,22 @@ class FishbowlSession:
             raise CallFailure(f"Unissue MO {mo_id} failed: {result['status']} {result['reason']} - {result.get('data')}")
 
 
+    def get_mo(self, mo_id:int) -> object:
+        """
+        Gets a manufacture order with the provided MO ID.
+        Raises CallFailure on non-2xx response.
+        """
+        if not self.is_logged_in():
+            raise Exception("Fishbowl session is logged out or inactive.")
+        result = fb_get_mo(self._token, mo_id, self._is_test_db)
+        if result["status"] in (200, 201, 202, 203, 204):
+            self._call_count += 1
+            return result
+        else:
+            print(result["status"], result["reason"], result["data"])
+            raise CallFailure(f"Get MO {mo_id} failed: {result['status']} {result['reason']} - {result.get('data')}")
+        
+
     def update_mo(self, mo_id:int, data:dict) -> object:
         """
         Updates a manufacture order with the provided payload dict.
@@ -151,6 +167,37 @@ class FishbowlSession:
         else:
             print(result["status"], result["reason"], result["data"])
             raise CallFailure(f"Update MO {mo_id} failed: {result['status']} {result['reason']} - {result.get('data')}")
+        
+    def update_po(self, po_id:int, data:dict) -> object:
+        """
+        Updates a purchase order with the provided payload dict.
+        Raises CallFailure on non-2xx response.
+        """
+        if not self.is_logged_in():
+            raise Exception("Fishbowl session is logged out or inactive.")
+        result = fb_update_po(self._token, po_id, data, self._is_test_db)
+        if result["status"] in (200, 201, 202, 203, 204):
+            self._call_count += 1
+            return result
+        else:
+            print(result["status"], result["reason"], result["data"])
+            raise CallFailure(f"Update PO {po_id} failed: {result['status']} {result['reason']} - {result.get('data')}")
+        
+
+    def get_po(self, po_id:int) -> object:
+        """
+        Gets a purchase order with the provided ID.
+        Raises CallFailure on non-2xx response.
+        """
+        if not self.is_logged_in():
+            raise Exception("Fishbowl session is logged out or inactive.")
+        result = fb_get_po(self._token, po_id, self._is_test_db)
+        if result["status"] in (200, 201, 202, 203, 204):
+            self._call_count += 1
+            return result
+        else:
+            print(result["status"], result["reason"], result["data"])
+            raise CallFailure(f"Get PO {po_id} failed: {result['status']} {result['reason']} - {result.get('data')}")
 
 
     def issue_mo(self, mo_id:int) -> object:
@@ -165,7 +212,7 @@ class FishbowlSession:
             self._call_count += 1
             return result
         else:
-            print(result["status"], result["reason"], result["data"])
+            print(result["status"], result["reason"])
             raise CallFailure(f"Issue MO {mo_id} failed: {result['status']} {result['reason']} - {result.get('data')}")
 
 

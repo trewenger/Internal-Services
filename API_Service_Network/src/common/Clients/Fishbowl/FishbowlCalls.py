@@ -145,6 +145,26 @@ def fb_unissue_mo(token:str, mo_id:int, is_test_db:bool = False) -> object:
     return {"status": response.status_code, "reason": response.reason}
 
 
+def fb_get_mo(token:str, mo_id:int, is_test_db:bool = False) -> object:
+    """
+    Gets a Fishbowl manufacture order by ID.
+    Returns an object: {'status', 'reason', 'data'}
+    """
+    fb_server_address = os.getenv("FISHBOWL_SERVER_ADDRESS")
+    fb_port = os.getenv("FISHBOWL_TEST_PORT") if is_test_db else os.getenv("FISHBOWL_PROD_PORT")
+    url = f"http://{fb_server_address}:{fb_port}/api/manufacture-orders/{mo_id}"
+
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + str(token)
+    }
+
+    response = requests.get(url, headers=headers)
+    print("Get MO: ", response.status_code, response.reason)
+    data_out = json.loads(response.content) if response.content else None
+    return {"status": response.status_code, "reason": response.reason, "data": data_out}
+
+
 def fb_update_mo(token:str, mo_id:int, data:dict, is_test_db:bool = False) -> object:
     """
     Updates a Fishbowl manufacture order by ID with the provided payload.
@@ -161,6 +181,46 @@ def fb_update_mo(token:str, mo_id:int, data:dict, is_test_db:bool = False) -> ob
 
     response = requests.post(url, headers=headers, data=json.dumps(data))
     print("Update MO: ", response.status_code, response.reason)
+    data_out = json.loads(response.content) if response.content else None
+    return {"status": response.status_code, "reason": response.reason, "data": data_out}
+
+
+def fb_update_po(token:str, po_id:int, data:dict, is_test_db:bool = False) -> object:
+    """
+    Updates a Fishbowl purchase order by ID with the provided payload.
+    Returns an object: {'status', 'reason', 'data'}
+    """
+    fb_server_address = os.getenv("FISHBOWL_SERVER_ADDRESS")
+    fb_port = os.getenv("FISHBOWL_TEST_PORT") if is_test_db else os.getenv("FISHBOWL_PROD_PORT")
+    url = f"http://{fb_server_address}:{fb_port}/api/purchase-orders/{po_id}"
+
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + str(token)
+    }
+
+    response = requests.post(url, headers=headers, data=json.dumps(data))
+    print("Update PO: ", response.status_code, response.reason)
+    data_out = json.loads(response.content) if response.content else None
+    return {"status": response.status_code, "reason": response.reason, "data": data_out}
+
+
+def fb_get_po(token:str, po_id:int, is_test_db:bool = False) -> object:
+    """
+    Gets a Fishbowl purchase order by ID.
+    Returns an object: {'status', 'reason', 'data'}
+    """
+    fb_server_address = os.getenv("FISHBOWL_SERVER_ADDRESS")
+    fb_port = os.getenv("FISHBOWL_TEST_PORT") if is_test_db else os.getenv("FISHBOWL_PROD_PORT")
+    url = f"http://{fb_server_address}:{fb_port}/api/purchase-orders/{po_id}"
+
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + str(token)
+    }
+
+    response = requests.get(url, headers=headers)
+    print("Get PO: ", response.status_code, response.reason)
     data_out = json.loads(response.content) if response.content else None
     return {"status": response.status_code, "reason": response.reason, "data": data_out}
 

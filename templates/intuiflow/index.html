@@ -396,15 +396,37 @@
 
         <!-- Header -->
         <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h1 class="text-3xl font-bold text-gray-800">Intuiflow</h1>
-            <p class="text-gray-600 mt-1">Run and schedule Intuiflow sync pipelines and individual modules</p>
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Intuiflow</h1>
+                    <p class="text-gray-600 mt-1">Run and schedule Intuiflow sync pipelines and individual modules</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('intuiflow.how_to') }}" class="text-blue-600 hover:underline text-sm font-semibold">How To Guide</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info box -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div class="flex items-start gap-3">
+                <span class="text-blue-600 text-xl">ℹ️</span>
+                <div class="text-sm text-blue-800">
+                    <p class="font-semibold mb-1">About Intuiflow</p>
+                    <p>This page keeps Fishbowl and Intuiflow in sync. <strong>Sync Pipelines</strong> chain
+                       multiple steps together and can be put on an automatic schedule.
+                       <strong>Individual Modules</strong> let you run a single step on demand (only use if you are confident).
+                       Click any card to configure notifications, view run history, or adjust the schedule.
+                       Click <strong>▶ Run Now</strong> on any card for an immediate one-time execution.</p>
+                </div>
+            </div>
         </div>
 
         <!-- ===== Section 1: Pipelines ===== -->
         <div class="mb-2">
-            <div class="flex items-center gap-3 mb-4">
-                <h2 class="text-lg font-bold text-gray-700">Sync Pipelines</h2>
-                <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Schedulable</span>
+            <div class="flex items-center gap-3 mb-4 pl-2">
+                <h2 class="text-2xl font-bold text-gray-700">Sync Pipelines</h2>
+                <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Schedulable + Run on demand</span>
             </div>
             <div class="grid grid-cols-1 gap-4" id="pipelines-grid">
                 {% for name in ['full-sync', 'partial-sync'] %}
@@ -415,10 +437,10 @@
         </div>
 
         <!-- ===== Section 2: Individual Modules ===== -->
-        <div class="mt-8">
-            <div class="flex items-center gap-3 mb-4">
-                <h2 class="text-lg font-bold text-gray-700">Individual Modules</h2>
-                <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Run on demand</span>
+        <div class="mt-14">
+            <div class="flex items-center gap-3 mb-4 pl-2">
+                <h2 class="text-2xl font-bold text-gray-700">Individual Modules</h2>
+                <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Run on demand only</span>
             </div>
             <div class="grid grid-cols-1 gap-4" id="modules-grid">
                 {% for name in ['import-pending-orders', 'update-work-orders', 'close-work-orders', 'upload-fb-files'] %}

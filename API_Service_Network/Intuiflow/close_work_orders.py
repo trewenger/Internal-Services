@@ -4,7 +4,6 @@ from common.Clients.Intuiflow.IntuiflowApi import get_closed_rope_items
 from common.Utils.Logging import SessionLog
 from common.Utils.Utils import load_query
 from datetime import datetime, timedelta
-from pprint import pprint
 
 # ── Private helpers ───────────────────────────────────────────────────────────
 def _is_valid(val):

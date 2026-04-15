@@ -2,10 +2,12 @@ from config import Config
 from common.Clients.Fishbowl.FishbowlSession import FishbowlSession
 from common.Clients.Intuiflow.IntuiflowApi import (
     create_import, create_import_item, validate_import, run_import, delete_import,
+    get_closed_wo
 )
 from common.Utils.Logging import SessionLog
-from common.Utils.Utils import load_query
-import time
+from common.Utils.Utils import load_query, csv_export
+import time 
+from datetime import datetime, timedelta
 
 # ── Public entry point ─────────────────────────────────────────────────────────
 
@@ -18,9 +20,12 @@ class UploadFbFiles:
     """
 
     def __init__(self):
+        seven_days_ago = datetime.now() - timedelta(days=7)
+        self._date_7_ago = f"{seven_days_ago.month}-{seven_days_ago.day}-{seven_days_ago.year}"
         self.log = SessionLog()
         self._is_intuiflow_test = Config.INTUIFLOW_USE_TEST
         self._is_fb_test_db     = Config.USE_TEST_DB
+        self._closed_wo_nums        = ["000000"]    # place holder value so the query always has something
         # SQL queries loaded once at init
         self._sql_demand_history = load_query("DemandHistory")
         self._sql_part           = load_query("Part")
@@ -35,6 +40,29 @@ class UploadFbFiles:
         self._supply_order   = None
         self._demand_order   = None
         self._inventory      = None
+
+    def _get_closed_work_orders(self) -> None:
+        """ Get closed orders from intuiflow to exclude them in the supply order query. """
+        try:
+            # API call to Intuiflow
+            resp = get_closed_wo(self._date_7_ago, self._is_intuiflow_test)    # API calls raise Exception on failure.
+            orders = resp["data"]
+
+            self.log.log("Get Closed Work Orders (Intuiflow)", "Successfully queried closed orders in Intuiflow.")
+
+            # validate and normalize the fields
+            for order in (orders or []):
+                if order.get("OrderNumber"):
+                    self._closed_wo_nums.append(order["OrderNumber"])
+
+            nums_sql = ", ".join(f"'{n}'" for n in self._closed_wo_nums)
+            self._sql_supply_order = self._sql_supply_order.replace(
+                "{closed_wo_filter}",
+                f"AND WO.num NOT IN ({nums_sql})"
+            )
+        except Exception as e:
+            self.log.log("Get Closed Work Orders (Intuiflow)", f"Ending the API call stack due to error: {e}", True)
+            raise
 
     def _check_validation_results(self, response_items: list, expected_files: dict, context: str) -> bool:
         """Validates Intuiflow import response items against expected file record counts.
@@ -119,8 +147,16 @@ class UploadFbFiles:
                     return None
                 self.log.log(f"Query Fishbowl: {label}", 
                              f"{label} query returned {len(rows)} records.", auto_print=False)
+                csv_export(rows, f"{label}.csv", 
+                           "C:/Users/twenger/OneDrive - X Factor Machine/Tre Wenger/1. System Architecture and Projects/INTERNAL_SERVICES_V2/API_Service_Network/Intuiflow/outputs")
                 return {"Data": rows, "Mode": mode, "RecordCount": len(rows)}
 
+            # Dynamically set the valid location groups for the inventory query based on FB environment.
+            nums_sql = "(1, 22, 24, 28, 37, 38)" if not self._is_fb_test_db else "(1, 64, 24, 65, 73, 74)"
+            self._sql_inventory = self._sql_inventory.replace(
+                "{valid_inventory_lg_filter}",
+                nums_sql
+            )
 
             self._demand_history = _run("DemandArchive",   self._sql_demand_history, "Update")
             self._part           = _run("Part",            self._sql_part,           "Update")
@@ -290,6 +326,7 @@ class UploadFbFiles:
     def auto_run(self) -> SessionLog:
         """Queries Fishbowl for all file data, then uploads each to Intuiflow. Returns the session log."""
         try:
+            self._get_closed_work_orders()
             # query Fishbowl for all six file datasets in a single session
             self._query_fishbowl()
             # upload part alone (Mode=Update)
