@@ -10,20 +10,26 @@ Purpose:
 import os
 import requests
 import json
+from urllib.parse import quote
+from config import Config
 # ------------------------------------------------------------ #
 #                         Configs:
 # ------------------------------------------------------------ #
 
-INTUIFLOW_PROD_ADDRESS = os.getenv("INTUIFLOW_PROD_ADDRESS")
-INTUIFLOW_PROD_TOKEN = os.getenv("INTUIFLOW_PROD_TOKEN")
-INTUIFLOW_TEST_ADDRESS = os.getenv("INTUIFLOW_TEST_ADDRESS")
-INTUIFLOW_TEST_TOKEN = os.getenv("INTUIFLOW_TEST_TOKEN")
+INTUIFLOW_PROD_ADDRESS = Config.INTUIFLOW_PROD_ADDRESS
+INTUIFLOW_PROD_TOKEN = Config.INTUIFLOW_PROD_TOKEN
+INTUIFLOW_TEST_ADDRESS = Config.INTUIFLOW_TEST_ADDRESS
+INTUIFLOW_TEST_TOKEN = Config.INTUIFLOW_TEST_TOKEN
+INTUIFLOW_USE_TEST = Config.INTUIFLOW_USE_TEST
+
+class ApiCallFailure(Exception):
+    pass
 
 # ------------------------------------------------------------ #
 #                       POST Requests:
 # ------------------------------------------------------------ #
 
-def create_import(import_mode:str, is_test_environment:bool = False) -> object: 
+def create_import(import_mode:str, is_test_environment:bool=INTUIFLOW_USE_TEST) -> object: 
     """   """
     if import_mode != "Replace" and import_mode != "Update":
         raise Exception("The import mode must be either 'Replace' or 'Update'. ")
@@ -45,9 +51,11 @@ def create_import(import_mode:str, is_test_environment:bool = False) -> object:
     })
 
     response = requests.post(url=url, headers=headers, data=payload)
+    if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
+        raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
     return {"status":response.status_code, "reason":response.reason, "data":response.json()}
 
-def delete_import(import_id:int, is_test_environment:bool = False) -> object: 
+def delete_import(import_id:int, is_test_environment:bool=INTUIFLOW_USE_TEST) -> object: 
     """   """
     base_url = INTUIFLOW_TEST_ADDRESS if is_test_environment else INTUIFLOW_PROD_ADDRESS
     token = INTUIFLOW_TEST_TOKEN if is_test_environment else INTUIFLOW_PROD_TOKEN
@@ -60,13 +68,16 @@ def delete_import(import_id:int, is_test_environment:bool = False) -> object:
     payload = {}
 
     response = requests.delete(url=url, headers=headers, data=payload)
+    if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
+        raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
     return {"status":response.status_code, "reason":response.reason}
 
-def create_import_item(import_id:int, data:list, is_test_environment:bool = False) -> object:
+def create_import_item(import_id:int, data:list, item_type:str, 
+                       is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
     """   """
     base_url = INTUIFLOW_TEST_ADDRESS if is_test_environment else INTUIFLOW_PROD_ADDRESS
     token = INTUIFLOW_TEST_TOKEN if is_test_environment else INTUIFLOW_PROD_TOKEN
-    url = f"{base_url}/api/v2/import/{import_id}/item?type=BillOfMaterial"
+    url = f"{base_url}/api/v2/import/{import_id}/item?type={item_type}"
 
     headers = {
         "Content-Type": "application/json",
@@ -77,9 +88,11 @@ def create_import_item(import_id:int, data:list, is_test_environment:bool = Fals
     payload = json.dumps(data)
 
     response = requests.post(url=url, headers=headers, data=payload)
+    if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
+        raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
     return {"status":response.status_code, "reason":response.reason, "data":response.json()}
 
-def validate_import(import_id:int, is_test_environment:bool = False) -> object:
+def validate_import(import_id:int, is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
     """   """
     base_url = INTUIFLOW_TEST_ADDRESS if is_test_environment else INTUIFLOW_PROD_ADDRESS
     token = INTUIFLOW_TEST_TOKEN if is_test_environment else INTUIFLOW_PROD_TOKEN
@@ -92,9 +105,11 @@ def validate_import(import_id:int, is_test_environment:bool = False) -> object:
     payload = {}
 
     response = requests.post(url=url, headers=headers, data=payload)
+    if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
+        raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
     return {"status":response.status_code, "reason":response.reason, "data":response.json()}
 
-def run_import(import_id:int, is_test_environment:bool = False) -> object:
+def run_import(import_id:int, is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
     """   """
     base_url = INTUIFLOW_TEST_ADDRESS if is_test_environment else INTUIFLOW_PROD_ADDRESS
     token = INTUIFLOW_TEST_TOKEN if is_test_environment else INTUIFLOW_PROD_TOKEN
@@ -107,9 +122,11 @@ def run_import(import_id:int, is_test_environment:bool = False) -> object:
     payload = {}
 
     response = requests.post(url=url, headers=headers, data=payload)
+    if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
+        raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
     return {"status":response.status_code, "reason":response.reason, "data":response.json()}
 
-def committ_pending_orders(order_ids:list, is_test_environment:bool = False) -> object:
+def committ_pending_orders(order_ids:list, is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
     """   """
     base_url = INTUIFLOW_TEST_ADDRESS if is_test_environment else INTUIFLOW_PROD_ADDRESS
     token = INTUIFLOW_TEST_TOKEN if is_test_environment else INTUIFLOW_PROD_TOKEN
@@ -121,18 +138,18 @@ def committ_pending_orders(order_ids:list, is_test_environment:bool = False) -> 
         "api_key": token
     }
 
-    payload = json.dumps([
-        # list of order ids
-    ])
+    payload = json.dumps(order_ids)
 
     response = requests.post(url=url, headers=headers, data=payload)
+    if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
+        raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
     return {"status":response.status_code, "reason":response.reason, "data":response.json()}
 
 # ------------------------------------------------------------ #
 #                       GET Requests:
 # ------------------------------------------------------------ #
 
-def get_pending_orders(is_test_environment:bool = False) -> object:
+def get_pending_orders(is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
     """   """
     base_url = INTUIFLOW_TEST_ADDRESS if is_test_environment else INTUIFLOW_PROD_ADDRESS
     token = INTUIFLOW_TEST_TOKEN if is_test_environment else INTUIFLOW_PROD_TOKEN
@@ -145,9 +162,11 @@ def get_pending_orders(is_test_environment:bool = False) -> object:
     payload = {}
 
     response = requests.request("GET", url, headers=headers, data=payload)
+    if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
+        raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
     return {"status":response.status_code, "reason":response.reason, "data":response.json()}
 
-def get_bom_info(is_test_environment:bool = False) -> object:
+def get_bom_info(is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
     """   """
     base_url = INTUIFLOW_TEST_ADDRESS if is_test_environment else INTUIFLOW_PROD_ADDRESS
     token = INTUIFLOW_TEST_TOKEN if is_test_environment else INTUIFLOW_PROD_TOKEN
@@ -160,9 +179,11 @@ def get_bom_info(is_test_environment:bool = False) -> object:
     payload = {}
 
     response = requests.request("GET", url, headers=headers, data=payload)
+    if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
+        raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
     return {"status":response.status_code, "reason":response.reason, "data":response.json()}
 
-def get_routing_info(is_test_environment:bool = False) -> object:
+def get_routing_info(is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
     """   """
     base_url = INTUIFLOW_TEST_ADDRESS if is_test_environment else INTUIFLOW_PROD_ADDRESS
     token = INTUIFLOW_TEST_TOKEN if is_test_environment else INTUIFLOW_PROD_TOKEN
@@ -175,9 +196,11 @@ def get_routing_info(is_test_environment:bool = False) -> object:
     payload = {}
 
     response = requests.request("GET", url, headers=headers, data=payload)
+    if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
+        raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
     return {"status":response.status_code, "reason":response.reason, "data":response.json()}
 
-def get_open_wo(is_test_environment:bool = False) -> object:
+def get_open_wo(is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
     """   """
     base_url = INTUIFLOW_TEST_ADDRESS if is_test_environment else INTUIFLOW_PROD_ADDRESS
     token = INTUIFLOW_TEST_TOKEN if is_test_environment else INTUIFLOW_PROD_TOKEN
@@ -190,13 +213,16 @@ def get_open_wo(is_test_environment:bool = False) -> object:
     payload = {}
 
     response = requests.request("GET", url, headers=headers, data=payload)
+    if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
+        raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
     return {"status":response.status_code, "reason":response.reason, "data":response.json()}
 
-def get_open_rope_items(is_test_environment:bool = False) -> object:
+def get_open_rope_items(location:str=None, is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
     """   """
     base_url = INTUIFLOW_TEST_ADDRESS if is_test_environment else INTUIFLOW_PROD_ADDRESS
     token = INTUIFLOW_TEST_TOKEN if is_test_environment else INTUIFLOW_PROD_TOKEN
-    url = f"{base_url}/api/v2/scheduling/orders/ropeitems?withRoot=false"
+    location_param = f"&location={quote(location)}" if location else ""
+    url = f"{base_url}/api/v2/scheduling/orders/ropeitems?withRoot=false{location_param}"
 
     headers = {
         "api_key": token
@@ -205,9 +231,11 @@ def get_open_rope_items(is_test_environment:bool = False) -> object:
     payload = {}
 
     response = requests.request("GET", url, headers=headers, data=payload)
+    if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
+        raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
     return {"status":response.status_code, "reason":response.reason, "data":response.json()}
 
-def get_bom_names(is_test_environment:bool = False) -> object:
+def get_bom_names(is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
     """   """
     base_url = INTUIFLOW_TEST_ADDRESS if is_test_environment else INTUIFLOW_PROD_ADDRESS
     token = INTUIFLOW_TEST_TOKEN if is_test_environment else INTUIFLOW_PROD_TOKEN
@@ -220,9 +248,11 @@ def get_bom_names(is_test_environment:bool = False) -> object:
     payload = {}
 
     response = requests.request("GET", url, headers=headers, data=payload)
+    if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
+        raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
     return {"status":response.status_code, "reason":response.reason, "data":response.json()}
 
-def get_closed_wo(closed_after:str, is_test_environment:bool = False) -> object:
+def get_closed_wo(closed_after:str, is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
     """  date must be mm-dd-yyyy, returns orders closed after the date.  """
     base_url = INTUIFLOW_TEST_ADDRESS if is_test_environment else INTUIFLOW_PROD_ADDRESS
     token = INTUIFLOW_TEST_TOKEN if is_test_environment else INTUIFLOW_PROD_TOKEN
@@ -235,13 +265,16 @@ def get_closed_wo(closed_after:str, is_test_environment:bool = False) -> object:
     payload = {}
 
     response = requests.request("GET", url, headers=headers, data=payload)
+    if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
+        raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
     return {"status":response.status_code, "reason":response.reason, "data":response.json()}
 
-def get_closed_rope_items(closed_after:str, is_test_environment:bool = False) -> object:
+def get_closed_rope_items(closed_after:str, location:str=None, is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
     """   """
     base_url = INTUIFLOW_TEST_ADDRESS if is_test_environment else INTUIFLOW_PROD_ADDRESS
     token = INTUIFLOW_TEST_TOKEN if is_test_environment else INTUIFLOW_PROD_TOKEN
-    url = f"{base_url}/api/v2/scheduling/orders/ropeitems?includeClosed=true&closedAfter={closed_after}&withRoot=false"
+    location_param = f"&location={quote(location)}" if location else ""
+    url = f"{base_url}/api/v2/scheduling/orders/ropeitems?includeClosed=true&closedAfter={closed_after}&withRoot=false{location_param}"
 
     headers = {
         "api_key": token
@@ -250,4 +283,6 @@ def get_closed_rope_items(closed_after:str, is_test_environment:bool = False) ->
     payload = {}
 
     response = requests.request("GET", url, headers=headers, data=payload)
+    if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
+        raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
     return {"status":response.status_code, "reason":response.reason, "data":response.json()}

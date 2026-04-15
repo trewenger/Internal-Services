@@ -16,6 +16,7 @@ requests==2.32.5
 
 # Data
 pandas==2.3.3
+pillow==12.2.0
 
 # Google API (GoogleSession client)
 google-auth==2.40.3

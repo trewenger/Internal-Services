@@ -1,54 +1,485 @@
 {% extends "base.html" %}
 
-{% block title %}Intuiflow — Internal Services{% endblock %}
+{% block title %}Internal Services — Intuiflow{% endblock %}
+
+{% set can_write = user_access.get('intuiflow') == 'write' %}
+
+{% set DESCRIPTIONS = {
+    'full-sync':             'Runs all 4 modules in sequence: Import Pending Orders → Update Work Orders → Close Work Orders → Upload FB Files.',
+    'partial-sync':          'Runs the two update/close modules: Update Work Orders → Close Work Orders.',
+    'upload-fb-files':       'Queries Fishbowl for 6 datasets and uploads each to Intuiflow via its import API.',
+    'update-work-orders':    'Updates open Fishbowl MOs to match current Intuiflow scheduling data.',
+    'close-work-orders':     'Closes completed Intuiflow work orders in Fishbowl (cycle inventory + delete MO).',
+    'import-pending-orders': 'Fetches approved Intuiflow pending orders and creates the corresponding MOs/POs in Fishbowl.',
+} %}
+
+{% macro status_badge(name, cfg) %}
+    <div id="status-badge-{{ name }}">
+        {% if cfg.running %}
+            <span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">Running...</span>
+        {% elif cfg.last_status == 'success' %}
+            <span class="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">Last run: Success</span>
+        {% elif cfg.last_status == 'error' %}
+            <span class="bg-red-100 text-red-800 text-xs font-bold px-3 py-1 rounded-full">Last run: Error</span>
+        {% else %}
+            <span class="bg-gray-100 text-gray-600 text-xs font-bold px-3 py-1 rounded-full">Never run</span>
+        {% endif %}
+    </div>
+{% endmacro %}
+
+{% macro logs_tab(name) %}
+<div id="tab-panel-{{ name }}-logs" class="hidden p-4">
+    <div class="space-y-4">
+        <div id="log-loading-{{ name }}" class="hidden text-sm text-gray-400 italic">Loading logs...</div>
+
+        <!-- Recent Errors -->
+        <div class="border rounded-lg p-4 bg-gray-50">
+            <div class="flex justify-between items-center mb-3">
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-semibold text-gray-700">Recent Errors</label>
+                    <span id="error-count-badge-{{ name }}" class="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">0</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="refreshLogs('{{ name }}')"
+                            class="bg-green-500 hover:bg-green-700 text-white text-sm font-bold py-1 px-3 rounded transition">🔄 Refresh</button>
+                    <button onclick="clearLogs('{{ name }}', 'errors')"
+                            class="bg-gray-500 hover:bg-red-700 text-white text-sm font-bold py-1 px-3 rounded transition">🗑️ Clear All</button>
+                </div>
+            </div>
+            <div id="log-entries-{{ name }}-error"
+                 class="bg-white border rounded-lg p-3 overflow-y-auto"
+                 style="max-height: 300px; min-height: 80px;"></div>
+        </div>
+
+        <!-- Recent Logs -->
+        <div class="border rounded-lg p-4 bg-gray-50">
+            <div class="flex justify-between items-center mb-3">
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-semibold text-gray-700">Recent Logs</label>
+                    <span id="log-count-badge-{{ name }}" class="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">0</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="refreshLogs('{{ name }}')"
+                            class="bg-green-500 hover:bg-green-700 text-white text-sm font-bold py-1 px-3 rounded transition">🔄 Refresh</button>
+                    <button onclick="clearLogs('{{ name }}', 'audit')"
+                            class="bg-gray-500 hover:bg-red-700 text-white text-sm font-bold py-1 px-3 rounded transition">🗑️ Clear All</button>
+                </div>
+            </div>
+            <div id="log-entries-{{ name }}-audit"
+                 class="bg-white border rounded-lg p-3 overflow-y-auto"
+                 style="max-height: 300px; min-height: 80px;"></div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro notifications_tab(name, cfg, has_short_inv) %}
+<div id="tab-panel-{{ name }}-notifications" class="hidden p-4">
+    <div class="space-y-6">
+
+        <!-- Standard Notifications -->
+        <div class="space-y-5">
+            <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider text-center">Run Notifications</h3>
+
+            <!-- Notify mode -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Notify me</label>
+                <div class="flex items-center gap-6">
+                    {% for mode_val, mode_label in [('none','Off'),('always','After every run'),('failure','On failures')] %}
+                    <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input type="radio" name="notify-mode-{{ name }}" value="{{ mode_val }}"
+                               {{ 'checked' if cfg.notify_mode == mode_val }}
+                               class="accent-blue-500">
+                        {{ mode_label }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Recipients -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Recipients</label>
+                <div id="recipient-chips-{{ name }}" class="flex flex-wrap gap-2 mb-2">
+                    {% for email in cfg.notify_recipients %}
+                    <span data-email="{{ email }}"
+                          class="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-semibold px-3 py-1 rounded-full">
+                        {{ email }}
+                        <button type="button" onclick="removeRecipient(this)"
+                                class="ml-1 text-blue-500 hover:text-red-500 font-bold leading-none">×</button>
+                    </span>
+                    {% endfor %}
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="email" id="recipient-input-{{ name }}"
+                           placeholder="email@example.com"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();addRecipient('{{ name }}');}"
+                           class="border rounded py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64">
+                    <button onclick="addRecipient('{{ name }}')"
+                            class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold py-1.5 px-3 rounded transition">
+                        + Add
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        {% if has_short_inv %}
+        <!-- Short Inventory Notifications -->
+        <div class="space-y-5 border-t pt-5">
+            <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider text-center">Short Inventory Notifications</h3>
+            <p class="text-xs text-gray-500">Sent separately when work orders are closed with insufficient inventory.</p>
+
+            <!-- Short inv toggle -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Short Inv Alerts</label>
+                <div class="flex items-center gap-6">
+                    <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input type="radio" name="short-inv-enabled-{{ name }}" value="off"
+                               {{ 'checked' if not cfg.short_inv_notify_enabled }}
+                               class="accent-blue-500">
+                        Off
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input type="radio" name="short-inv-enabled-{{ name }}" value="on"
+                               {{ 'checked' if cfg.short_inv_notify_enabled }}
+                               class="accent-blue-500">
+                        On
+                    </label>
+                </div>
+            </div>
+
+            <!-- Short inv recipients -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Short Inv Recipients</label>
+                <div id="short-inv-chips-{{ name }}" class="flex flex-wrap gap-2 mb-2">
+                    {% for email in cfg.short_inv_notify_recipients %}
+                    <span data-email="{{ email }}"
+                          class="inline-flex items-center gap-1 bg-orange-100 text-orange-800 text-xs font-semibold px-3 py-1 rounded-full">
+                        {{ email }}
+                        <button type="button" onclick="removeShortInvRecipient(this)"
+                                class="ml-1 text-orange-500 hover:text-red-500 font-bold leading-none">×</button>
+                    </span>
+                    {% endfor %}
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="email" id="short-inv-input-{{ name }}"
+                           placeholder="email@example.com"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();addShortInvRecipient('{{ name }}');}"
+                           class="border rounded py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64">
+                    <button onclick="addShortInvRecipient('{{ name }}')"
+                            class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold py-1.5 px-3 rounded transition">
+                        + Add
+                    </button>
+                </div>
+            </div>
+
+        </div>
+        {% endif %}
+
+        <button onclick="saveNotifications('{{ name }}')"
+                class="bg-blue-500 hover:bg-blue-700 text-white text-sm font-bold py-2 px-4 rounded transition">
+            Save Notifications
+        </button>
+
+    </div>
+</div>
+{% endmacro %}
+
+{% macro schedule_tab(name, cfg) %}
+{% if cfg.schedule_type == 'interval' %}{% set _ui_type = 'interval' %}
+{% elif cfg.schedule_type == 'cron' and cfg.schedule_cron and 'day_of_week' not in cfg.schedule_cron %}{% set _ui_type = 'daily' %}
+{% elif cfg.schedule_type == 'cron' and cfg.schedule_cron and 'day_of_week' in cfg.schedule_cron %}{% set _ui_type = 'weekly' %}
+{% else %}{% set _ui_type = 'custom' %}{% endif %}
+
+<div id="tab-panel-{{ name }}-schedule" class="hidden p-4">
+    <div class="space-y-5">
+
+        <!-- Enable toggle -->
+        <div class="flex items-center gap-3">
+            <label class="text-sm font-semibold text-gray-700">Scheduled:</label>
+            <button type="button"
+                    onclick="
+                        const inp = document.getElementById('enabled-toggle-input-{{ name }}');
+                        inp.checked = !inp.checked;
+                        this.classList.toggle('bg-blue-500', inp.checked);
+                        this.classList.toggle('bg-gray-300', !inp.checked);
+                        this.querySelector('span').classList.toggle('translate-x-8', inp.checked);
+                        this.querySelector('span').classList.toggle('translate-x-1', !inp.checked);
+                        document.getElementById('enabled-label-{{ name }}').textContent = inp.checked ? 'On' : 'Off';
+                        document.getElementById('enabled-label-{{ name }}').className = inp.checked ? 'text-sm text-blue-600 font-bold' : 'text-sm text-gray-500';
+                        document.getElementById('sched-options-{{ name }}').classList.toggle('hidden', !inp.checked);
+                    "
+                    class="relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none
+                           {{ 'bg-blue-500' if cfg.enabled else 'bg-gray-300' }}">
+                <span class="inline-block h-5 w-5 transform rounded-full bg-white transition-transform shadow
+                             {{ 'translate-x-8' if cfg.enabled else 'translate-x-1' }}"></span>
+            </button>
+            <span id="enabled-label-{{ name }}"
+                  class="{{ 'text-sm text-blue-600 font-bold' if cfg.enabled else 'text-sm text-gray-500' }}">
+                {{ 'On' if cfg.enabled else 'Off' }}
+            </span>
+            <input type="checkbox" id="enabled-toggle-input-{{ name }}"
+                   class="hidden" {{ 'checked' if cfg.enabled }}>
+        </div>
+
+        <!-- Schedule options (hidden when disabled) -->
+        <div id="sched-options-{{ name }}" class="space-y-5 {{ 'hidden' if not cfg.enabled }}">
+
+            <!-- Schedule type segmented control -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Schedule Type</label>
+                <div class="flex rounded-lg border border-gray-300 overflow-hidden w-full">
+                    {% for type_val, type_label in [('interval','Every N Min'),('daily','Daily'),('weekly','Weekly'),('custom','Custom')] %}
+                    <button type="button"
+                            id="sched-type-btn-{{ type_val }}-{{ name }}"
+                            onclick="selectScheduleType('{{ name }}', '{{ type_val }}')"
+                            class="flex-1 py-2 text-sm font-semibold transition
+                                   {% if not loop.first %}border-l border-gray-300{% endif %}
+                                   {% if _ui_type == type_val %}bg-blue-500 text-white{% else %}bg-white text-gray-600 hover:bg-gray-50{% endif %}">
+                        {{ type_label }}
+                    </button>
+                    {% endfor %}
+                </div>
+                <input type="hidden" id="schedule-type-{{ name }}" value="{{ _ui_type }}">
+            </div>
+
+            <!-- Interval sub-fields -->
+            <div id="sched-interval-{{ name }}" class="{{ '' if cfg.schedule_type == 'interval' else 'hidden' }}">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Every (minutes)</label>
+                <input type="number" min="1" id="interval-mins-{{ name }}"
+                       value="{{ cfg.schedule_interval_minutes }}"
+                       class="border rounded py-2 px-3 w-28 text-center text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <!-- Daily sub-fields -->
+            <div id="sched-daily-{{ name }}"
+                 class="{{ '' if cfg.schedule_type == 'cron' and cfg.schedule_cron and 'day_of_week' not in cfg.schedule_cron else 'hidden' }}">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Time</label>
+                <input type="time" id="daily-time-{{ name }}"
+                       value="{{ '%02d:%02d' % (cfg.schedule_cron.hour, cfg.schedule_cron.minute) if cfg.schedule_cron and 'hour' in cfg.schedule_cron else '' }}"
+                       class="border rounded py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <!-- Weekly sub-fields -->
+            <div id="sched-weekly-{{ name }}"
+                 class="{{ '' if cfg.schedule_type == 'cron' and cfg.schedule_cron and 'day_of_week' in cfg.schedule_cron else 'hidden' }}">
+                <div class="flex items-center gap-3 flex-wrap">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Day</label>
+                        <select id="weekly-day-{{ name }}"
+                                class="border rounded py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            {% for day_val, day_label in [('mon','Monday'),('tue','Tuesday'),('wed','Wednesday'),('thu','Thursday'),('fri','Friday'),('sat','Saturday'),('sun','Sunday')] %}
+                            <option value="{{ day_val }}"
+                                {{ 'selected' if cfg.schedule_cron and cfg.schedule_cron.get('day_of_week') == day_val }}>
+                                {{ day_label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Time</label>
+                        <input type="time" id="weekly-time-{{ name }}"
+                               value="{{ '%02d:%02d' % (cfg.schedule_cron.hour, cfg.schedule_cron.minute) if cfg.schedule_cron and 'hour' in cfg.schedule_cron else '' }}"
+                               class="border rounded py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom cron sub-fields -->
+            <div id="sched-custom-{{ name }}"
+                 class="{{ '' if cfg.schedule_type == 'cron' and not cfg.schedule_cron else 'hidden' }}">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                    Cron expression
+                    <span class="text-gray-400 font-normal">(minute hour day month day_of_week)</span>
+                </label>
+                <input type="text" id="custom-cron-{{ name }}"
+                       placeholder="0 9 * * 1-5"
+                       class="border rounded py-2 px-3 w-48 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <p class="text-xs text-gray-400 mt-1">Example: <code>0 9 * * 1-5</code> = Mon–Fri at 9:00 AM</p>
+            </div>
+
+        </div><!-- end sched-options -->
+
+        <button onclick="saveSchedule('{{ name }}')"
+                class="bg-blue-500 hover:bg-blue-700 text-white text-sm font-bold py-2 px-4 rounded transition">
+            Save Schedule
+        </button>
+    </div>
+</div>
+{% endmacro %}
+
+{% macro card(name, cfg, is_pipeline) %}
+{% set has_short_inv = name in ['full-sync', 'partial-sync', 'close-work-orders'] %}
+<div class="bg-white rounded-lg shadow-md" id="card-{{ name }}">
+
+    <!-- ===== Collapsed Header ===== -->
+    <div class="p-5 cursor-pointer hover:bg-gray-50 transition select-none"
+         onclick="toggleCard('{{ name }}')">
+        <div class="flex items-start justify-between gap-4">
+
+            <!-- Left: title + description + status row -->
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-3 flex-wrap">
+                    <h2 class="text-lg font-bold text-gray-800">{{ cfg.label }}</h2>
+                    {{ status_badge(name, cfg) }}
+                </div>
+                <p class="text-sm text-gray-500 mt-1">{{ DESCRIPTIONS[name] }}</p>
+                <div class="flex items-center gap-4 mt-2 text-xs text-gray-500 flex-wrap">
+                    <span>
+                        <span class="font-semibold text-gray-600">Last:</span>
+                        <span id="last-run-{{ name }}">
+                            {% if cfg.last_run %}{{ cfg.last_run[:19].replace('T',' ') }}{% else %}Never{% endif %}
+                        </span>
+                    </span>
+                    {% if is_pipeline %}
+                    <span>
+                        <span class="font-semibold text-gray-600">Next:</span>
+                        <span id="next-run-{{ name }}">—</span>
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Right: Run Now + chevron -->
+            <div class="flex items-center gap-3 shrink-0" onclick="event.stopPropagation()">
+                <button onclick="runNow('{{ name }}')"
+                        id="run-btn-{{ name }}"
+                        {% if cfg.running %}disabled{% endif %}
+                        class="bg-green-500 hover:bg-green-700 disabled:bg-gray-300 text-white font-bold py-2 px-4 rounded transition text-sm">
+                    {% if cfg.running %}Running...{% else %}▶ Run Now{% endif %}
+                </button>
+                <svg id="chevron-{{ name }}"
+                     class="w-5 h-5 text-gray-400 transition-transform duration-200 pointer-events-none"
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Expanded Body ===== -->
+    <div id="card-body-{{ name }}" class="hidden border-t">
+
+        <!-- Tab bar -->
+        <div class="flex justify-center border-b px-5 pt-0">
+            {% if is_pipeline %}
+            {% set tabs = [('schedule','Schedule'),('notifications','Notifications'),('logs','Logs')] %}
+            {% else %}
+            {% set tabs = [('notifications','Notifications'),('logs','Logs')] %}
+            {% endif %}
+            {% for tab_id, tab_label in tabs %}
+            <button id="tab-btn-{{ name }}-{{ tab_id }}"
+                    onclick="switchTab('{{ name }}', '{{ tab_id }}')"
+                    class="px-4 py-3 text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition -mb-px">
+                {{ tab_label }}
+            </button>
+            {% endfor %}
+        </div>
+
+        {% if is_pipeline %}{{ schedule_tab(name, cfg) }}{% endif %}
+        {{ notifications_tab(name, cfg, has_short_inv) }}
+        {{ logs_tab(name) }}
+
+    </div><!-- end card-body -->
+</div><!-- end card -->
+{% endmacro %}
 
 {% block content %}
 <div class="min-h-screen p-6">
     <div class="max-w-7xl mx-auto">
 
+        {% if not can_write %}
+        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded-lg px-4 py-3 mb-4 text-sm flex items-center gap-2">
+            <span class="font-bold">Read-only access</span> — you can view this page but cannot run or configure modules.
+        </div>
+        {% endif %}
+
         <!-- Header -->
         <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h1 class="text-3xl font-bold text-gray-800">Intuiflow</h1>
-            <p class="text-gray-600 mt-1">Intuiflow API integration</p>
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Intuiflow</h1>
+                    <p class="text-gray-600 mt-1">Run and schedule Intuiflow sync pipelines and individual modules</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('intuiflow.how_to') }}" class="text-blue-600 hover:underline text-sm font-semibold">How To Guide</a>
+                </div>
+            </div>
         </div>
 
-        <!-- Coming Soon card -->
-        <div class="bg-white rounded-lg shadow-md p-12 text-center">
-            <div class="text-6xl mb-4">🚧</div>
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">Coming Soon</h2>
-            <p class="text-gray-600 mb-8 max-w-lg mx-auto">
-                The Intuiflow integration is currently under development. The API client is a work in progress
-                and will be wired into this interface once it's stable.
-            </p>
+        <!-- Info box -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div class="flex items-start gap-3">
+                <span class="text-blue-600 text-xl">ℹ️</span>
+                <div class="text-sm text-blue-800">
+                    <p class="font-semibold mb-1">About Intuiflow</p>
+                    <p>This page keeps Fishbowl and Intuiflow in sync. <strong>Sync Pipelines</strong> chain
+                       multiple steps together and can be put on an automatic schedule.
+                       <strong>Individual Modules</strong> let you run a single step on demand (only use if you are confident).
+                       Click any card to configure notifications, view run history, or adjust the schedule.
+                       Click <strong>▶ Run Now</strong> on any card for an immediate one-time execution.</p>
+                </div>
+            </div>
+        </div>
 
-            <!-- Planned features -->
-            <div class="max-w-md mx-auto bg-gray-50 border border-gray-200 rounded-lg p-6 text-left">
-                <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4">Planned Capabilities</h3>
-                <ul class="space-y-3 text-sm text-gray-600">
-                    <li class="flex items-start gap-2">
-                        <span class="text-blue-400 mt-0.5">○</span>
-                        <span><span class="font-semibold">BOM Import Pipeline</span> — Create, validate, and run Bill of Materials imports</span>
-                    </li>
-                    <li class="flex items-start gap-2">
-                        <span class="text-blue-400 mt-0.5">○</span>
-                        <span><span class="font-semibold">Pending Order Management</span> — View and commit pending planner orders</span>
-                    </li>
-                    <li class="flex items-start gap-2">
-                        <span class="text-blue-400 mt-0.5">○</span>
-                        <span><span class="font-semibold">Open Work Orders</span> — View and manage open scheduling orders</span>
-                    </li>
-                    <li class="flex items-start gap-2">
-                        <span class="text-blue-400 mt-0.5">○</span>
-                        <span><span class="font-semibold">ROPE Items</span> — Monitor open and closed ROPE scheduling items</span>
-                    </li>
-                    <li class="flex items-start gap-2">
-                        <span class="text-blue-400 mt-0.5">○</span>
-                        <span><span class="font-semibold">Test / Production Toggle</span> — Switch between test and production Intuiflow environments</span>
-                    </li>
-                </ul>
+        <!-- ===== Section 1: Pipelines ===== -->
+        <div class="mb-2">
+            <div class="flex items-center gap-3 mb-4 pl-2">
+                <h2 class="text-2xl font-bold text-gray-700">Sync Pipelines</h2>
+                <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Schedulable + Run on demand</span>
+            </div>
+            <div class="grid grid-cols-1 gap-4" id="pipelines-grid">
+                {% for name in ['full-sync', 'partial-sync'] %}
+                    {% set cfg = config[name] %}
+                    {{ card(name, cfg, is_pipeline=true) }}
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- ===== Section 2: Individual Modules ===== -->
+        <div class="mt-14">
+            <div class="flex items-center gap-3 mb-4 pl-2">
+                <h2 class="text-2xl font-bold text-gray-700">Individual Modules</h2>
+                <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Run on demand only</span>
+            </div>
+            <div class="grid grid-cols-1 gap-4" id="modules-grid">
+                {% for name in ['import-pending-orders', 'update-work-orders', 'close-work-orders', 'upload-fb-files'] %}
+                    {% set cfg = config[name] %}
+                    {{ card(name, cfg, is_pipeline=false) }}
+                {% endfor %}
             </div>
         </div>
 
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.INTUIFLOW_CONFIG = {{ config | tojson }};</script>
+{% if not can_write %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('button, input, select').forEach(el => { el.disabled = true; });
+    });
+</script>
+{% endif %}
+<script src="{{ url_for('static', filename='js/intuiflow.js') }}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        fetch('/intuiflow/status')
+            .then(r => r.json())
+            .then(result => {
+                if (!result.success) return;
+                for (const [name, cfg] of Object.entries(result.config)) {
+                    const el = document.getElementById(`next-run-${name}`);
+                    if (el) el.textContent = cfg.next_run ? formatDatetime(cfg.next_run) : '—';
+                    if (window.INTUIFLOW_CONFIG[name]) {
+                        window.INTUIFLOW_CONFIG[name].next_run = cfg.next_run;
+                    }
+                    if (cfg.running) pollStatus(name);
+                }
+            })
+            .catch(() => {});
+    });
+</script>
 {% endblock %}

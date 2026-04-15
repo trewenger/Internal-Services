@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+
+{% block title %}How To Guide - Intuiflow{% endblock %}
+
+{% block content %}
+<div class="min-h-screen p-6 bg-gray-100">
+    <div class="max-w-5xl mx-auto">
+
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">How To Guide</h1>
+                    <p class="text-gray-600 mt-1">Learn how to use the Intuiflow Integration</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('intuiflow.index') }}"
+                       class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition">
+                        Back to App
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table of Contents -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+            <h2 class="text-xl font-bold text-blue-900 mb-4">Table of Contents</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-blue-700">
+                <a href="#overview" class="hover:underline">1. System Overview</a>
+                <a href="#pipelines" class="hover:underline">2. Sync Pipelines</a>
+                <a href="#modules" class="hover:underline">3. Individual Modules</a>
+                <a href="#running" class="hover:underline">4. Running a Pipeline or Module</a>
+                <a href="#scheduling" class="hover:underline">5. Scheduling</a>
+                <a href="#notifications" class="hover:underline">6. Notifications</a>
+                <a href="#short-inventory" class="hover:underline">7. Short Inventory Alerts</a>
+                <a href="#logs" class="hover:underline">8. Logs &amp; Run History</a>
+            </div>
+        </div>
+
+        <!-- 1. System Overview -->
+        <div id="overview" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">1. System Overview</h2>
+            <p class="text-gray-700 mb-3">
+                The Intuiflow Integration keeps Fishbowl and Intuiflow synchronized. It handles four jobs:
+                importing new orders from Intuiflow into Fishbowl, updating existing work orders with the
+                latest Intuiflow scheduling data, closing completed work orders (cycling inventory in the
+                process), and uploading fresh Fishbowl data back into Intuiflow so its scheduling engine
+                has accurate inputs.
+            </p>
+            <div class="bg-gray-50 border rounded p-4">
+                <h3 class="font-semibold text-gray-800 mb-2">Key Features:</h3>
+                <ul class="list-disc list-inside text-gray-700 space-y-1">
+                    <li>Two schedulable sync pipelines (Full Sync and Partial Sync)</li>
+                    <li>Four individual modules that can be run on demand at any time</li>
+                    <li>Per-pipeline and per-module email notifications</li>
+                    <li>Short inventory alerts when a work order cannot be closed due to missing parts</li>
+                    <li>Full run history and error logs per pipeline and module</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 2. Sync Pipelines -->
+        <div id="pipelines" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">2. Sync Pipelines</h2>
+            <p class="text-gray-700 mb-4">
+                Pipelines chain multiple modules together in a fixed order. They are the recommended way
+                to keep the two systems in sync and are the only items that can be put on an automatic
+                schedule.
+            </p>
+
+            <div class="space-y-4">
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-blue-600 mb-1">Full Sync</h3>
+                    <p class="text-gray-700 mb-2">
+                        Runs all four modules in order:
+                    </p>
+                    <ol class="list-decimal list-inside text-gray-700 space-y-1 ml-2">
+                        <li>Import Pending Orders — pulls approved Intuiflow orders and creates MOs/POs in Fishbowl</li>
+                        <li>Update Work Orders — updates open Fishbowl MOs with current Intuiflow scheduling data</li>
+                        <li>Close Work Orders — closes completed Intuiflow WOs in Fishbowl, cycling inventory</li>
+                        <li>Upload FB Files — sends six Fishbowl datasets back to Intuiflow for scheduling</li>
+                    </ol>
+                    <div class="bg-blue-50 border border-blue-200 rounded p-3 mt-3">
+                        <span class="font-semibold">Use Case:</span> Run this when you need everything brought
+                        into sync — new orders, schedule updates, closures, and data upload all at once. Typically
+                        scheduled to run overnight or at an interval during working hours.
+                    </div>
+                </div>
+
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-blue-600 mb-1">Partial Sync</h3>
+                    <p class="text-gray-700 mb-2">
+                        Runs two modules in order:
+                    </p>
+                    <ol class="list-decimal list-inside text-gray-700 space-y-1 ml-2">
+                        <li>Update Work Orders</li>
+                        <li>Close Work Orders</li>
+                    </ol>
+                    <div class="bg-blue-50 border border-blue-200 rounded p-3 mt-3">
+                        <span class="font-semibold">Use Case:</span> A lighter, faster sync for keeping
+                        existing work orders up to date and closing completed ones without re-importing
+                        orders or uploading files.
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-yellow-50 border border-yellow-200 rounded p-4 mt-4">
+                <span class="font-semibold">Note:</span> If a single module fails inside a pipeline, the
+                remaining modules still run. The pipeline status will show <span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full">Last run: Error</span> if
+                any module encountered a problem, even if others succeeded.
+            </div>
+        </div>
+
+        <!-- 3. Individual Modules -->
+        <div id="modules" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">3. Individual Modules</h2>
+            <p class="text-gray-700 mb-4">
+                Individual modules can be run on demand at any time but cannot be scheduled. Use them
+                when you need to run just one piece of the sync process — for example, to re-upload
+                Fishbowl files without re-importing orders.
+            </p>
+
+            <div class="space-y-4">
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-blue-600 mb-1">Import Pending Orders</h3>
+                    <p class="text-gray-700">
+                        Fetches orders from Intuiflow that have been approved and are pending creation in
+                        Fishbowl. For each one, it creates the corresponding Manufacturing Order (MO) or
+                        Purchase Order (PO) in Fishbowl and then marks the order as committed in Intuiflow.
+                    </p>
+                </div>
+
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-blue-600 mb-1">Update Work Orders</h3>
+                    <p class="text-gray-700">
+                        Looks at all open Fishbowl MOs that are linked to Intuiflow work orders and updates
+                        them with the latest scheduling data from Intuiflow — quantities, dates, routing names,
+                        and other fields. Also handles work orders that have been closed in Intuiflow but are
+                        still open in Fishbowl, and cleans up records for orders closed in Fishbowl that
+                        Intuiflow still considers open.
+                    </p>
+                </div>
+
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-blue-600 mb-1">Close Work Orders</h3>
+                    <p class="text-gray-700">
+                        Takes work orders that Intuiflow has marked as complete and closes them in Fishbowl.
+                        Closing a work order cycles inventory — finished goods are added to stock and raw
+                        materials are consumed. If there is not enough inventory on hand to fulfill a cycle,
+                        the order is skipped and an optional short inventory alert can be sent.
+                    </p>
+                </div>
+
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-blue-600 mb-1">Upload FB Files</h3>
+                    <p class="text-gray-700">
+                        Queries Fishbowl for six datasets — demand history, parts, bill of materials, supply
+                        orders, demand orders, and inventory — and uploads each one to Intuiflow via its
+                        import API. This gives Intuiflow the data it needs to generate an accurate production
+                        schedule.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Running a Pipeline or Module -->
+        <div id="running" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">4. Running a Pipeline or Module</h2>
+            <p class="text-gray-700 mb-4">
+                Every card on the dashboard has a <span class="font-semibold text-green-600">▶ Run Now</span>
+                button. Clicking it starts that pipeline or module immediately, regardless of any schedule.
+            </p>
+            <div class="space-y-3 mb-4">
+                <div class="flex items-start gap-3">
+                    <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+                    <p class="text-gray-700">Click <span class="font-semibold text-green-600">▶ Run Now</span> on the card you want to run.</p>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+                    <p class="text-gray-700">The status badge changes to <span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-0.5 rounded-full">Running...</span> and the button is disabled while it executes.</p>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+                    <p class="text-gray-700">When it finishes, the badge updates to <span class="bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">Last run: Success</span> or <span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full">Last run: Error</span> and the last run time is updated.</p>
+                </div>
+            </div>
+            <div class="bg-yellow-50 border border-yellow-200 rounded p-4">
+                <span class="font-semibold">Note:</span> A pipeline or module cannot be run while it is
+                already running. The Run Now button will remain disabled until the current run completes.
+                Runs triggered manually and runs triggered by the scheduler do not conflict — if a scheduled
+                run starts while you are already running the same pipeline manually, the scheduler will
+                skip that fire.
+            </div>
+        </div>
+
+        <!-- 5. Scheduling -->
+        <div id="scheduling" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">5. Scheduling</h2>
+            <p class="text-gray-700 mb-4">
+                Only the two pipelines (Full Sync and Partial Sync) can be scheduled. Individual modules
+                are run on demand only. To configure a schedule, click a pipeline card to expand it, then
+                click the <span class="font-semibold">Schedule</span> tab. Toggle
+                <span class="font-semibold">Scheduled</span> on to reveal the scheduling options.
+            </p>
+
+            <div class="space-y-4">
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Every N Minutes</h3>
+                    <p class="text-gray-700">Runs the pipeline repeatedly at a fixed minute interval. The interval is anchored to the last run time, so restarting the server does not reset the clock.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Daily</h3>
+                    <p class="text-gray-700">Runs once per day at a chosen time. If the server is down at the scheduled time, the next run will be the following day at that time.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Weekly</h3>
+                    <p class="text-gray-700">Runs once per week on a chosen day and time.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-1">Custom (Cron)</h3>
+                    <p class="text-gray-700">Enter a standard cron expression for full control over the schedule.
+                        Format: <code class="bg-gray-100 px-1 rounded text-sm">minute hour day month day_of_week</code>.
+                        Example: <code class="bg-gray-100 px-1 rounded text-sm">0 6 * * 1-5</code> = Mon–Fri at 6:00 AM.
+                    </p>
+                </div>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded p-4 mt-4">
+                <span class="font-semibold">Tip:</span> Click <span class="font-semibold">Save Schedule</span>
+                after making any changes. The <span class="font-semibold">Next:</span> time shown in the card
+                header will update immediately to confirm the new schedule was applied.
+            </div>
+        </div>
+
+        <!-- 6. Notifications -->
+        <div id="notifications" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">6. Notifications</h2>
+            <p class="text-gray-700 mb-4">
+                Every pipeline and individual module has its own notification settings, configured
+                independently. Click any card to expand it, then click the <span class="font-semibold">Notifications</span>
+                tab. Note that pipeline notification settings are completely separate from individual module
+                notification settings — configuring Full Sync notifications does not affect the Close Work
+                Orders module notifications, and vice versa.
+            </p>
+
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Notify Me Options:</h3>
+                <ul class="space-y-2">
+                    <li class="flex items-start gap-2">
+                        <span class="font-semibold text-gray-700 w-36 shrink-0">Off</span>
+                        <span class="text-gray-700">No emails are sent.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="font-semibold text-gray-700 w-36 shrink-0">After every run</span>
+                        <span class="text-gray-700">An email is sent after every run, whether it succeeded or failed.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="font-semibold text-gray-700 w-36 shrink-0">On failures</span>
+                        <span class="text-gray-700">An email is only sent when a run encounters an error.</span>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Managing Recipients:</h3>
+                <p class="text-gray-700">Add email addresses one at a time using the Recipients field and
+                click <span class="font-semibold">+ Add</span> (or press Enter). Remove any recipient by
+                clicking the <span class="font-semibold text-red-500">×</span> on their chip. Click
+                <span class="font-semibold">Save Notifications</span> when done.</p>
+            </div>
+
+            <div class="bg-yellow-50 border border-yellow-200 rounded p-4">
+                <span class="font-semibold">Note:</span> Notification emails are branded Radian emails and
+                include the run status, timestamp, and a full breakdown of what each module did — including
+                which records were updated, created, or skipped.
+            </div>
+        </div>
+
+        <!-- 7. Short Inventory Alerts -->
+        <div id="short-inventory" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">7. Short Inventory Alerts</h2>
+            <p class="text-gray-700 mb-4">
+                When the Close Work Orders step runs — either as part of a pipeline or on its own — it
+                checks whether there is enough inventory on hand to cycle each work order. If a work order
+                cannot be closed because a required part is short, that order is skipped and can be flagged
+                via a separate short inventory alert email.
+            </p>
+
+            <div class="bg-gray-50 border rounded p-4 mb-4">
+                <h3 class="font-semibold text-gray-800 mb-2">How to enable short inventory alerts:</h3>
+                <div class="space-y-2">
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+                        <p class="text-gray-700">Open the Full Sync, Partial Sync, or Close Work Orders card and go to the <span class="font-semibold">Notifications</span> tab.</p>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+                        <p class="text-gray-700">Scroll down to the <span class="font-semibold">Short Inventory Notifications</span> section and set <span class="font-semibold">Short Inv Alerts</span> to <span class="font-semibold">On</span>.</p>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+                        <p class="text-gray-700">Add the email addresses that should receive these alerts in the <span class="font-semibold">Short Inv Recipients</span> field.</p>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">4</span>
+                        <p class="text-gray-700">Click <span class="font-semibold">Save Notifications</span>.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-orange-50 border border-orange-200 rounded p-4">
+                <span class="font-semibold">Important:</span> Short inventory alerts are configured and sent
+                independently for each card. Enabling them on Full Sync does not automatically enable them
+                on Partial Sync or the Close Work Orders module — each must be configured separately. The
+                alert email lists each skipped work order and the specific part(s) that were short.
+            </div>
+        </div>
+
+        <!-- 8. Logs & Run History -->
+        <div id="logs" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">8. Logs &amp; Run History</h2>
+            <p class="text-gray-700 mb-4">
+                Every pipeline and module keeps its own run history. Click a card to expand it, then click
+                the <span class="font-semibold">Logs</span> tab. Two panels are shown:
+                <span class="font-semibold text-red-600">Recent Errors</span> and
+                <span class="font-semibold text-blue-600">Recent Logs</span>.
+            </p>
+
+            <div class="space-y-3 mb-4">
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-red-600 mb-1">Recent Errors</h3>
+                    <p class="text-gray-700">Shows only runs that encountered an error, with a breakdown of which step failed and what went wrong. Up to 10 entries are kept.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-blue-600 mb-1">Recent Logs</h3>
+                    <p class="text-gray-700">Shows all runs (including successful ones) with the full log output from that run. Up to 10 entries are kept.</p>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Buttons:</h3>
+                <ul class="list-disc list-inside text-gray-700 space-y-1 ml-4">
+                    <li><span class="font-semibold text-green-600">Refresh</span> — reloads the log panel from the server.</li>
+                    <li><span class="font-semibold text-gray-600">Clear All</span> — permanently deletes the log history for that panel.</li>
+                </ul>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded p-4">
+                <span class="font-semibold">Tip:</span> Logs are loaded on demand when you open the Logs tab.
+                Use Refresh if a run just completed and you want to see the latest entry without reloading
+                the page.
+            </div>
+        </div>
+
+        <!-- Back button -->
+        <div class="text-center mb-6">
+            <a href="{{ url_for('intuiflow.index') }}"
+               class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition text-lg inline-block">
+                Back to App
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

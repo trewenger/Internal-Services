@@ -42,6 +42,18 @@ API_Service_network/VariousInternalServices/scripts/Outputs
 API_Service_network/VariousInternalServices/services_config.json
 API_Service_network/VariousInternalServices/services_log.json
 
+#                   Intuiflow
+API_Service_Network/Intuiflow/intuiflow_config.json
+API_Service_Network/Intuiflow/intuiflow_log.json
+
+# Email Templates
+API_Service_Network/src/common/Clients/Email/sources
+
 # other:
 readme.txt
 !API_Service_network/src/common/Clients/Google/README.txt
+API_Service_Network/Intuiflow/queries/*
+API_Service_Network/Intuiflow/.old_files
+API_Service_Network/VariousInternalServices/scripts/plan.md
+test.py
+API_Service_Network/Intuiflow/outputs/*

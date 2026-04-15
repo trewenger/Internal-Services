@@ -142,7 +142,7 @@ class FishbowlSync:
                         so.dateissued >= '{since_str}'
                         AND so.statusid NOT IN (60, 70, 80, 85, 90, 95)
                         AND soitem.statusid NOT IN (50, 60, 70, 75, 95)
-                        -- AND so.createdbyuserid IN (95, 25)
+                        AND so.createdbyuserid IN (95, 25)
                     GROUP BY product.num
                     ;
                     '''
@@ -508,12 +508,13 @@ class FishbowlSync:
             override_skus = self.data.get_all_skus()
             override = {}
             today_str = date.today().strftime("%Y-%m-%d")
+            avail_qty = override_skus[sku]['available_qty']
             for sku in override_skus:
                 temp = {
                     'PartNumber': override_skus[sku]['part_num'],
                     'SnFlag': override_skus[sku]['sn_flag'],
                     'Location':f'{company} / Main-Retail Website Inventory',
-                    'Qty': override_skus[sku]['available_qty'],
+                    'Qty': avail_qty if avail_qty >= 0 else 0,
                     'Note': f'Retail Website Inventory API Manual Override: {today_str}',
                     'Tracking-Lot Number': '',
                     'Tracking-Revision Level': '',
