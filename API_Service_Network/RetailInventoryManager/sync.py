@@ -504,12 +504,11 @@ class FishbowlSync:
 
             # get company name from config
             company = self.config.FISHBOWL_COMPANY_NAME
-            
             override_skus = self.data.get_all_skus()
             override = {}
             today_str = date.today().strftime("%Y-%m-%d")
-            avail_qty = override_skus[sku]['available_qty']
             for sku in override_skus:
+                avail_qty = override_skus[sku]['available_qty']
                 temp = {
                     'PartNumber': override_skus[sku]['part_num'],
                     'SnFlag': override_skus[sku]['sn_flag'],
@@ -521,7 +520,6 @@ class FishbowlSync:
                     'Tracking-Expiration Date': ''
                 }
                 override[sku] = temp
-            
 
             cycle_data = self.get_cycle_data(override)
             import_headers = ['PartNumber', 'Location', 'Qty', 'Note',
