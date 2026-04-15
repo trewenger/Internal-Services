@@ -33,5 +33,8 @@ Avalara==26.2.0
 # Fishbowl crypto auth (FishbowlSession client)
 cryptography
 
+# Custom email templates:
+Pillow
+
 # Editable shared library
 # Install separately: pip install -e ./API_Service_Network
