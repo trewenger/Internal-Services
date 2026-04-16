@@ -14,13 +14,14 @@ class SessionLog:
         self._error_flag = 0
         self._logs = {}
 
-    def log(self, func_name:str, message:str, is_error:bool = False) -> None:
+    def log(self, func_name:str, message:str, is_error:bool=False, auto_print:bool=True) -> None:
         """
         Prints and adjusts the logs attribute to track function specific run results. Set the is_error param 
         to True to change the error_flag to 1. Returns None. 
         """
 
-        print(message)
+        if auto_print:
+            print(message)
 
         if is_error:
             self._error_flag = 1

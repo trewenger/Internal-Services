@@ -112,6 +112,177 @@ class FishbowlSession:
             raise CallFailure
         
 
+    def unissue_mo(self, mo_id:int) -> object:
+        """
+        Unissues a manufacture order so it can be edited.
+        Treats 'already unissued' as success (no-op).
+        Raises CallFailure on other non-2xx responses.
+        """
+        if not self.is_logged_in():
+            raise Exception("Fishbowl session is logged out or inactive.")
+        result = fb_unissue_mo(self._token, mo_id, self._is_test_db)
+        if result["status"] in (200, 201, 202, 203, 204):
+            self._call_count += 1
+            return result
+        else:
+            # Tolerate "already unissued" — treat as success
+            try:
+                msg = result.get("data", {}) or {}
+                if isinstance(msg, dict) and "Can only unissue" in str(msg.get("message", "")):
+                    self._call_count += 1
+                    return result
+            except Exception:
+                pass
+            print(result["status"], result["reason"])
+            raise CallFailure(f"Unissue MO {mo_id} failed: {result['status']} {result['reason']} - {result.get('data')}")
+
+
+    def get_mo(self, mo_id:int) -> object:
+        """
+        Gets a manufacture order with the provided MO ID.
+        Raises CallFailure on non-2xx response.
+        """
+        if not self.is_logged_in():
+            raise Exception("Fishbowl session is logged out or inactive.")
+        result = fb_get_mo(self._token, mo_id, self._is_test_db)
+        if result["status"] in (200, 201, 202, 203, 204):
+            self._call_count += 1
+            return result
+        else:
+            print(result["status"], result["reason"], result["data"])
+            raise CallFailure(f"Get MO {mo_id} failed: {result['status']} {result['reason']} - {result.get('data')}")
+        
+
+    def update_mo(self, mo_id:int, data:dict) -> object:
+        """
+        Updates a manufacture order with the provided payload dict.
+        Raises CallFailure on non-2xx response.
+        """
+        if not self.is_logged_in():
+            raise Exception("Fishbowl session is logged out or inactive.")
+        result = fb_update_mo(self._token, mo_id, data, self._is_test_db)
+        if result["status"] in (200, 201, 202, 203, 204):
+            self._call_count += 1
+            return result
+        else:
+            print(result["status"], result["reason"], result["data"])
+            raise CallFailure(f"Update MO {mo_id} failed: {result['status']} {result['reason']} - {result.get('data')}")
+        
+    def update_po(self, po_id:int, data:dict) -> object:
+        """
+        Updates a purchase order with the provided payload dict.
+        Raises CallFailure on non-2xx response.
+        """
+        if not self.is_logged_in():
+            raise Exception("Fishbowl session is logged out or inactive.")
+        result = fb_update_po(self._token, po_id, data, self._is_test_db)
+        if result["status"] in (200, 201, 202, 203, 204):
+            self._call_count += 1
+            return result
+        else:
+            print(result["status"], result["reason"], result["data"])
+            raise CallFailure(f"Update PO {po_id} failed: {result['status']} {result['reason']} - {result.get('data')}")
+        
+
+    def get_po(self, po_id:int) -> object:
+        """
+        Gets a purchase order with the provided ID.
+        Raises CallFailure on non-2xx response.
+        """
+        if not self.is_logged_in():
+            raise Exception("Fishbowl session is logged out or inactive.")
+        result = fb_get_po(self._token, po_id, self._is_test_db)
+        if result["status"] in (200, 201, 202, 203, 204):
+            self._call_count += 1
+            return result
+        else:
+            print(result["status"], result["reason"], result["data"])
+            raise CallFailure(f"Get PO {po_id} failed: {result['status']} {result['reason']} - {result.get('data')}")
+
+
+    def issue_mo(self, mo_id:int) -> object:
+        """
+        Issues a manufacture order.
+        Raises CallFailure on non-2xx response.
+        """
+        if not self.is_logged_in():
+            raise Exception("Fishbowl session is logged out or inactive.")
+        result = fb_issue_mo(self._token, mo_id, self._is_test_db)
+        if result["status"] in (200, 201, 202, 203, 204):
+            self._call_count += 1
+            return result
+        else:
+            print(result["status"], result["reason"])
+            raise CallFailure(f"Issue MO {mo_id} failed: {result['status']} {result['reason']} - {result.get('data')}")
+
+
+    def delete_mo(self, mo_id:int) -> object:
+        """
+        Deletes a manufacture order by ID.
+        Raises CallFailure on non-2xx response.
+        """
+        if not self.is_logged_in():
+            raise Exception("Fishbowl session is logged out or inactive.")
+        result = fb_delete_mo(self._token, mo_id, self._is_test_db)
+        if result["status"] in (200, 201, 202, 203, 204):
+            self._call_count += 1
+            return result
+        else:
+            print(result["status"], result["reason"])
+            self.logout()
+            raise CallFailure(f"Delete MO {mo_id} failed: {result['status']} {result['reason']}")
+
+
+    def cycle_part_inventory(self, part_id:int, payload:dict) -> object:
+        """
+        Cycles inventory for a single part at a specific location.
+        payload must include: location.id, quantity (new QOH), note, trackingItems.
+        Raises CallFailure on non-2xx response.
+        """
+        if not self.is_logged_in():
+            raise Exception("Fishbowl session is logged out or inactive.")
+        result = fb_cycle_part_inventory(self._token, part_id, payload, self._is_test_db)
+        if result["status"] in (200, 201, 202, 203, 204):
+            self._call_count += 1
+            return result
+        else:
+            print(result["status"], result["reason"])
+            self.logout()
+            raise CallFailure(f"Cycle inventory for part {part_id} failed: {result['status']} {result['reason']}")
+
+
+    def create_mo(self, data:dict) -> object:
+        """
+        Creates a manufacture order with the provided payload dict.
+        Raises CallFailure on non-2xx response.
+        """
+        if not self.is_logged_in():
+            raise Exception("Fishbowl session is logged out or inactive.")
+        result = fb_create_mo(self._token, data, self._is_test_db)
+        if result["status"] in (200, 201, 202, 203, 204):
+            self._call_count += 1
+            return result
+        else:
+            print(result["status"], result["reason"], result["data"])
+            raise CallFailure(f"Create MO failed: {result['status']} {result['reason']} - {result.get('data')}")
+
+
+    def create_po(self, data:dict) -> object:
+        """
+        Creates a purchase order with the provided payload dict.
+        Raises CallFailure on non-2xx response.
+        """
+        if not self.is_logged_in():
+            raise Exception("Fishbowl session is logged out or inactive.")
+        result = fb_create_po(self._token, data, self._is_test_db)
+        if result["status"] in (200, 201, 202, 203, 204):
+            self._call_count += 1
+            return result
+        else:
+            print(result["status"], result["reason"], result["data"])
+            raise CallFailure(f"Create PO failed: {result['status']} {result['reason']} - {result.get('data')}")
+
+
     def cycle_inventory(self, data) -> object:
         """
         Bulk cycles inventory into fishbowl using the Cycle Count Import method. 

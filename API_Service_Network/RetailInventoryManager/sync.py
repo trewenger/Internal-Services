@@ -12,6 +12,7 @@ import threading
 from datetime import date
 
 SALES_CHECK_LOCK = threading.Lock()
+SYNC_LOCK        = threading.Lock()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -142,7 +143,7 @@ class FishbowlSync:
                         so.dateissued >= '{since_str}'
                         AND so.statusid NOT IN (60, 70, 80, 85, 90, 95)
                         AND soitem.statusid NOT IN (50, 60, 70, 75, 95)
-                        -- AND so.createdbyuserid IN (95, 25)
+                        AND so.createdbyuserid IN (95, 25)
                     GROUP BY product.num
                     ;
                     '''
@@ -307,8 +308,11 @@ class FishbowlSync:
 
     def determine_sync(self) -> Dict:
         '''
-        Main logic to determine the sync. Called by the sync now button and the scheduler jobs. 
+        Main logic to determine the sync. Called by the sync now button and the scheduler jobs.
         '''
+        if not SYNC_LOCK.acquire(blocking=False):
+            logger.info("Sync skipped: already running")
+            return {'success': False, 'error': 'Sync is already running'}
         try:
             # Check inventory method
             config = self.data.get_config()
@@ -335,6 +339,8 @@ class FishbowlSync:
                 'success': False,
                 'error': str(e)
             }
+        finally:
+            SYNC_LOCK.release()
 
     def run_sales_check(self) -> Dict:
         '''
@@ -504,23 +510,22 @@ class FishbowlSync:
 
             # get company name from config
             company = self.config.FISHBOWL_COMPANY_NAME
-            
             override_skus = self.data.get_all_skus()
             override = {}
             today_str = date.today().strftime("%Y-%m-%d")
             for sku in override_skus:
+                avail_qty = override_skus[sku]['available_qty']
                 temp = {
                     'PartNumber': override_skus[sku]['part_num'],
                     'SnFlag': override_skus[sku]['sn_flag'],
                     'Location':f'{company} / Main-Retail Website Inventory',
-                    'Qty': override_skus[sku]['available_qty'],
+                    'Qty': avail_qty if avail_qty >= 0 else 0,
                     'Note': f'Retail Website Inventory API Manual Override: {today_str}',
                     'Tracking-Lot Number': '',
                     'Tracking-Revision Level': '',
                     'Tracking-Expiration Date': ''
                 }
                 override[sku] = temp
-            
 
             cycle_data = self.get_cycle_data(override)
             import_headers = ['PartNumber', 'Location', 'Qty', 'Note',

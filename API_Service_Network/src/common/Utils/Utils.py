@@ -43,6 +43,7 @@ def load_query(filename: str) -> str:
 
 def csv_export(data, filename, path:str=None) -> None:
     """
+    Date: Any json data set.
     Removes the previous CSV file from the CSV folder, then exports the new CSV file. Returns the file path.
     """
     try:

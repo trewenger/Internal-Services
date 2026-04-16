@@ -16,6 +16,7 @@ requests==2.32.5
 
 # Data
 pandas==2.3.3
+pillow==12.2.0
 
 # Google API (GoogleSession client)
 google-auth==2.40.3
@@ -31,6 +32,9 @@ Avalara==26.2.0
 
 # Fishbowl crypto auth (FishbowlSession client)
 cryptography
+
+# Custom email templates:
+Pillow
 
 # Editable shared library
 # Install separately: pip install -e ./API_Service_Network
