@@ -200,7 +200,7 @@ def vendor_tracker(result_recipients:list[str], notification_mode:str="none", co
     :type result_recipients: list
     :param notification_mode: 'none', 'failure' for abnormal/error run notifications, and 'always' for notification on every run
     :type notification_mode: str
-    :param column_order: OPT. he order of column headers for the pasted data. Must align with the headers returned by the query. Ex: ['PartNumber', 'Description', 'Qty', 'WipName']
+    :param column_order: OPT. the order of column headers for the pasted data. Must align with the headers returned by the query. Ex: ['PartNumber', 'Description', 'Qty', 'WipName']
     :type column_order: list[str]
     :param sheet_name: OPT. The name of the Google Sheet to read and update, 'Import' by default.
     :type sheet_name: str
@@ -222,6 +222,9 @@ def vendor_tracker(result_recipients:list[str], notification_mode:str="none", co
     TODAY = (datetime.now()).strftime("%m/%d/%Y")
     LOG = SessionLog()
     WIP_NAMES_FLAG = 0
+
+    if not column_order:
+        column_order = ['PartNumber', 'Description', 'Qty', 'WipName']
 
     if not VENDOR_TRACKER_SHEET_ID:
         LOG.log("vendor_tracker", "Missing Sheet ID: Please provide a VENDOR_TRACKER_SHEET_ID variable in a project config file", True)
