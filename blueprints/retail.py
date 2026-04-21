@@ -240,6 +240,46 @@ def api_reschedule_sync():
         return jsonify({'error': str(e)}), 500
 
 
+@retail_bp.route('/api/ignored-skus', methods=['GET'])
+@login_required
+def api_get_ignored_skus():
+    return jsonify({'success': True, 'ignored_skus': data.get_ignored_skus()})
+
+
+@retail_bp.route('/api/ignored-skus', methods=['POST'])
+@login_required
+def api_add_ignored_sku():
+    try:
+        req_data = request.get_json()
+        sku = req_data.get('sku', '').strip().upper()
+        if not sku:
+            return jsonify({'error': 'SKU required'}), 400
+        if not data.add_ignored_sku(sku):
+            return jsonify({'error': 'SKU already in ignored list'}), 400
+        user = session.get('username', 'unknown')
+        logger.info(f"Ignored SKU added: {sku} by {user}")
+        log.log(action='ignore', sku=sku, data={}, user=user)
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error adding ignored SKU: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@retail_bp.route('/api/ignored-skus/<sku>', methods=['DELETE'])
+@login_required
+def api_remove_ignored_sku(sku):
+    try:
+        if not data.remove_ignored_sku(sku.upper()):
+            return jsonify({'error': 'SKU not found in ignored list'}), 404
+        user = session.get('username', 'unknown')
+        logger.info(f"Ignored SKU removed: {sku} by {user}")
+        log.log(action='unignore', sku=sku.upper(), data={}, user=user)
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error removing ignored SKU: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @retail_bp.route('/api/remove-job', methods=['POST'])
 @login_required
 def api_remove_job():

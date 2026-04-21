@@ -708,6 +708,8 @@ document.addEventListener('DOMContentLoaded', function() {
     refreshErrors();
     // Initialize audit log display
     refreshLogs();
+    // Initialize ignored SKUs
+    loadIgnoredSkus();
 });
 
 // Error Log Functions
@@ -1016,6 +1018,95 @@ function getTimeAgo(date) {
 
     const diffDays = Math.floor(diffHours / 24);
     return `${diffDays}d ago`;
+}
+
+// Ignored SKUs
+
+async function loadIgnoredSkus() {
+    try {
+        const response = await fetch('/retail/api/ignored-skus');
+        const result = await response.json();
+        if (response.ok && result.success) {
+            renderIgnoredSkus(result.ignored_skus);
+        }
+    } catch (error) {
+        console.error('Error loading ignored SKUs:', error);
+    }
+}
+
+function renderIgnoredSkus(skus) {
+    const container = document.getElementById('ignored-skus-list');
+    if (!container) return;
+
+    if (!skus || skus.length === 0) {
+        container.innerHTML = '<span class="text-xs text-gray-400">No ignored SKUs.</span>';
+        return;
+    }
+
+    container.innerHTML = skus.map(sku => `
+        <span class="inline-flex items-center gap-1 bg-gray-200 text-gray-800 text-xs font-mono font-semibold px-3 py-1 rounded-full">
+            ${escapeHtml(sku)}
+            <button onclick="removeIgnoredSku('${escapeHtml(sku)}')"
+                    class="ml-1 text-gray-500 hover:text-red-600 font-bold leading-none"
+                    title="Remove">✕</button>
+        </span>
+    `).join('');
+}
+
+async function addIgnoredSku() {
+    const input = document.getElementById('ignored-sku-input');
+    const sku = input.value.trim().toUpperCase();
+
+    if (!sku) {
+        showNotification('Please enter a SKU', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('add-ignored-sku-btn');
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    try {
+        const response = await fetch('/retail/api/ignored-skus', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({sku})
+        });
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            input.value = '';
+            showNotification(`${sku} added to ignored list`, 'success');
+            loadIgnoredSkus();
+        } else {
+            showNotification(result.error || 'Error adding SKU', 'error');
+        }
+    } catch (error) {
+        showNotification('Error adding ignored SKU', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Add';
+    }
+}
+
+async function removeIgnoredSku(sku) {
+    if (!confirm(`Remove ${sku} from the ignored list?`)) return;
+
+    try {
+        const response = await fetch(`/retail/api/ignored-skus/${encodeURIComponent(sku)}`, {
+            method: 'DELETE'
+        });
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            showNotification(`${sku} removed from ignored list`, 'success');
+            loadIgnoredSkus();
+        } else {
+            showNotification(result.error || 'Error removing SKU', 'error');
+        }
+    } catch (error) {
+        showNotification('Error removing ignored SKU', 'error');
+    }
 }
 
 // Auto-refresh errors every minute

@@ -43,6 +43,7 @@ class InventoryData:
                 "auto_sync_enabled": False,
                 "inventory_method": "automated"
             },
+            "ignored_skus": [],
             "skus": {}
         }
         with open(self.filepath, 'w') as f:
@@ -166,6 +167,30 @@ class InventoryData:
         data = self._read_data()
         data['config'].update(updates)
         self._write_data(data)
+
+    def get_ignored_skus(self) -> list:
+        data = self._read_data()
+        return data.get('ignored_skus', [])
+
+    def add_ignored_sku(self, sku: str) -> bool:
+        data = self._read_data()
+        if 'ignored_skus' not in data:
+            data['ignored_skus'] = []
+        if sku in data['ignored_skus']:
+            return False
+        data['ignored_skus'].append(sku)
+        self._write_data(data)
+        return True
+
+    def remove_ignored_sku(self, sku: str) -> bool:
+        data = self._read_data()
+        ignored = data.get('ignored_skus', [])
+        if sku not in ignored:
+            return False
+        ignored.remove(sku)
+        data['ignored_skus'] = ignored
+        self._write_data(data)
+        return True
     
     # these are all former methods of this class, but have moved or need to move to the logging class below.
     """

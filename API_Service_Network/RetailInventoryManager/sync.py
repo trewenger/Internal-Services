@@ -10,6 +10,8 @@ from pathlib import Path
 from .modules import output_csv, create_matrix
 import threading
 from datetime import date
+from pprint import pprint
+import json
 
 SALES_CHECK_LOCK = threading.Lock()
 SYNC_LOCK        = threading.Lock()
@@ -183,7 +185,7 @@ class FishbowlSync:
         finally:
             session.logout()
 
-    def get_cycle_data(self, exclude:dict={}) -> list[dict]:
+    def get_cycle_data(self, override:dict={}, ignored:list=[]) -> list[dict]:
         ''' Calls and combines the two Fishbowl inventory queries: qoh and out_data '''
         try:
             # Fetch data
@@ -215,12 +217,21 @@ class FishbowlSync:
             to_remove = set()
             processed = set()
 
+            # add the ignore SKUs to processed (so they are skipped) and to_remove
+            for sku in ignored:
+                to_remove.add(sku)
+                processed.add(sku)
+
             # Remove the record if its a manual override part and it exists in the import data (cycle_in)
+            # handling part and product numbers in case they are different. 
             for record in cycle_in_inv:
                 part_num = record.get('PartNumber')
-                if part_num in exclude:
+                product_num = record.get('ProductNum')
+                if part_num in override or product_num in override:
                     to_remove.add(part_num)
                     processed.add(part_num)
+                    to_remove.add(product_num)
+                    processed.add(product_num)
 
             # processing query results with auto-calc on-hand inventory second, skips manually modified parts
             # For each part that has a record of inventory in the retail inventory location...
@@ -245,12 +256,15 @@ class FishbowlSync:
                 # Do nothing if the part number is serialized and has no valid inventory records (preserves static values)
                 # Do nothing if the part number is not serialized and has valid inventory records (update existing retail inventory location records)
 
-            # Remove flagged serialized items and manual override items
-            cycle_in_inv = [i for i in cycle_in_inv if i['PartNumber'] not in to_remove]
+            # Remove flagged serialized items and manual override items and ignored items
+            # handling part and product number seperately in case they are different.
+            cycle_in_inv = [i for i in cycle_in_inv 
+                            if i['PartNumber'] not in to_remove 
+                            and i['ProductNum'] not in to_remove]
 
             # add the manual override items back to the import with the correct values
-            for part_num in exclude:
-                cycle_in_inv.append(exclude[part_num])
+            for part_num in override:
+                cycle_in_inv.append(override[part_num])
 
             # Final deduplication by PartNumber (removes one lingering duplicate)
             unique_inv = {item['PartNumber']: item for item in cycle_in_inv if item.get('PartNumber')}
@@ -448,7 +462,8 @@ class FishbowlSync:
             start_time = time.time()
 
             # querying fishbowl and creating the sync data to cycle in. 
-            data = self.get_cycle_data()
+            ignored_skus = self.data.get_ignored_skus() or []
+            data = self.get_cycle_data(ignored=ignored_skus)
 
             # create the import matrix
             import_headers = ['PartNumber', 'Location', 'Qty', 'Note',
@@ -527,7 +542,8 @@ class FishbowlSync:
                 }
                 override[sku] = temp
 
-            cycle_data = self.get_cycle_data(override)
+            ignored_skus = self.data.get_ignored_skus() or []
+            cycle_data = self.get_cycle_data(override=override, ignored=ignored_skus)
             import_headers = ['PartNumber', 'Location', 'Qty', 'Note',
                             'Tracking-Lot Number', 'Tracking-Revision Level', 
                             'Tracking-Expiration Date']

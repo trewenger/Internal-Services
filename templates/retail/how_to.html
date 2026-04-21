@@ -31,8 +31,9 @@
                 <a href="#editing-skus" class="hover:underline">4. Editing SKUs</a>
                 <a href="#sync" class="hover:underline">5. Sync Functionality</a>
                 <a href="#sales-check" class="hover:underline">6. Sales Check</a>
-                <a href="#settings" class="hover:underline">7. Settings</a>
-                <a href="#errors" class="hover:underline">8. Error Management</a>
+                <a href="#ignored-skus" class="hover:underline">7. Ignored (Static) SKUs</a>
+                <a href="#settings" class="hover:underline">8. Settings</a>
+                <a href="#errors" class="hover:underline">9. Error Management</a>
             </div>
         </div>
 
@@ -152,9 +153,41 @@
             </div>
         </div>
 
-        <!-- 7. Settings -->
+        <!-- 7. Ignored SKUs -->
+        <div id="ignored-skus" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">7. Ignored (Static) SKUs</h2>
+            <p class="text-gray-700 mb-4">
+                The Ignored SKUs list lets you protect specific SKUs from being modified by the sync process.
+                Any SKU added to this list will be skipped entirely during sync — its quantity in Fishbowl's
+                "Retail Website Inventory" location will never be touched by the system.
+            </p>
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">When to use it:</h3>
+                <p class="text-gray-700 mb-2">Use this when you want to manage a SKU's inventory quantity directly in Fishbowl
+                and never have the system overwrite it. For example, a product with complex availability rules that
+                doesn't fit the standard sync logic.</p>
+            </div>
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Adding a SKU:</h3>
+                <p class="text-gray-700">Open the Settings panel, enter the SKU in the Ignored SKUs input, and click
+                <span class="font-semibold text-blue-600">Add</span>. The SKU does not need to exist in the SKU store below —
+                it will be ignored in both Manual and Automated modes.</p>
+            </div>
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Removing a SKU:</h3>
+                <p class="text-gray-700">Click the <span class="font-semibold">✕</span> on the SKU's badge in the ignored list.
+                The system will resume managing its inventory on the next sync.</p>
+            </div>
+            <div class="bg-yellow-50 border border-yellow-200 rounded p-4">
+                <span class="font-semibold">Note:</span> In Manual Mode, SKUs defined in the SKU store always take precedence over
+                the ignored list — a SKU that appears in both will still be synced with its manual quantity.
+                The ignored list primarily affects Automated Mode and any SKUs not in the manual store.
+            </div>
+        </div>
+
+        <!-- 8. Settings -->
         <div id="settings" class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">7. Settings</h2>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">8. Settings</h2>
             <div class="mb-4">
                 <h3 class="text-lg font-semibold text-gray-800 mb-2">Sync Interval:</h3>
                 <ul class="list-disc list-inside text-gray-700 space-y-1 ml-4">
@@ -167,9 +200,9 @@
             </div>
         </div>
 
-        <!-- 8. Error Management -->
+        <!-- 9. Error Management -->
         <div id="errors" class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">8. Error & Logging Management</h2>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">9. Error & Logging Management</h2>
             <p class="text-gray-700 mb-4">The system logs all errors and actions. New errors automatically trigger email notifications.</p>
             <div class="mb-4">
                 <h3 class="text-lg font-semibold text-gray-800 mb-2">Viewing Errors & Logs:</h3>
