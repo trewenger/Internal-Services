@@ -30,12 +30,14 @@ from blueprints.retail import retail_bp
 from blueprints.services import services_bp
 from blueprints.intuiflow import intuiflow_bp
 from blueprints.settings import settings_bp
+from blueprints.promo import promo_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(retail_bp, url_prefix='/retail')
 app.register_blueprint(services_bp, url_prefix='/services')
 app.register_blueprint(intuiflow_bp, url_prefix='/intuiflow')
 app.register_blueprint(settings_bp, url_prefix='/settings')
+app.register_blueprint(promo_bp, url_prefix='/retail-promo')
 
 # ------------------------------------------------------------------------------- #
 
