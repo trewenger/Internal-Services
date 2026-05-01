@@ -5,10 +5,11 @@ from datetime import datetime
 import threading
 import os
 import pytz
+from pprint import pprint
 
 from blueprints.auth import login_required, access_required
 from API_Service_Network.RetailPromoManager.data import PromoData, PromoLogger
-from API_Service_Network.RetailPromoManager.promo import upsert_discount
+from API_Service_Network.RetailPromoManager.promo import upsert_discount, get_discounts
 
 promo_bp = Blueprint('promo', __name__)
 
@@ -211,6 +212,13 @@ def api_add_promo():
         if use_type not in ('single', 'unlimited'):
             return jsonify({'error': 'Use type must be "single" or "unlimited".'}), 400
 
+        # see if the name already exists
+        all_discounts = get_discounts()
+        for discount in all_discounts:
+            name_ind = 0
+            if discount[name_ind] == name:
+                return jsonify({'error': 'Discount name already exists in Fishbowl.'}), 400
+
         try:
             start = _parse_pst(start_dt)
             end = _parse_pst(end_dt)
@@ -312,17 +320,13 @@ def api_edit_promo(name):
         job_id = _job_id(name)
         if promo_scheduler.get_job(job_id):
             promo_scheduler.remove_job(job_id)
+        
+        # update the fishbowl discount values
+        ok = upsert_discount(name, description, discount_type, discount_amount, True)
 
         if pre_status == 'active':
             if end > now:
                 # Case A: still active, sync any changed fields to Fishbowl immediately
-                ok = upsert_discount(name, description, discount_type, discount_amount, True)
-                if ok:
-                    promo_logger.append(name, 'edit', user, 'success',
-                                        'Updated while active. Fishbowl synced. Rescheduled at new end datetime.')
-                else:
-                    promo_logger.append(name, 'edit', user, 'error',
-                                        'Config updated but Fishbowl sync failed. Will retry at deactivation.')
                 schedule_promo(name)
             else:
                 # Case B: active but new end is in the past — deactivate immediately
@@ -344,6 +348,13 @@ def api_edit_promo(name):
                 promo_logger.append(name, 'edit', user, 'success',
                                     'Updated. Rescheduled at new start datetime.')
                 schedule_promo(name)
+                
+        if ok:
+            promo_logger.append(name, 'edit', user, 'success',
+                                'Updated while active. Fishbowl synced. Rescheduled at new end datetime.')
+        else:
+            promo_logger.append(name, 'edit', user, 'error',
+                                'Config updated but Fishbowl sync failed. Will retry at deactivation.')
 
         return jsonify({'success': True})
 

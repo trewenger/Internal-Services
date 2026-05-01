@@ -1,5 +1,7 @@
 from common.Clients.Fishbowl.FishbowlSession import FishbowlSession
+from config import Config
 
+is_test_db = Config.USE_TEST_DB
 
 def _build_payload(name, description, discount_type, discount_amount, active):
     headers = ['Name', 'Description', 'Type', 'Amount', 'Percentage', 'Taxable', 'Active']
@@ -7,7 +9,7 @@ def _build_payload(name, description, discount_type, discount_amount, active):
         fb_type, fb_amount, fb_pct = 'Percentage', 0.00, float(discount_amount)
     else:
         fb_type, fb_amount, fb_pct = 'Amount', float(discount_amount), 0
-    row = [name, description, fb_type, fb_amount, fb_pct, True, active]
+    row = [name, "Retail Promo Manager: " + description, fb_type, fb_amount, fb_pct, True, active]
     return [headers, row]
 
 
@@ -17,7 +19,7 @@ def upsert_discount(name, description, discount_type, discount_amount, active):
     Never raises — callers check the return value.
     """
     payload = _build_payload(name, description, discount_type, discount_amount, active)
-    session = FishbowlSession(is_test_db=False, login_attempts=1, attempt_wait_secs=0)
+    session = FishbowlSession(is_test_db=is_test_db, login_attempts=5, attempt_wait_secs=1000)
     try:
         session.update_discounts(payload)
         return True
@@ -32,7 +34,7 @@ def upsert_discount(name, description, discount_type, discount_amount, active):
 
 def get_discounts():
     """Fetch all Fishbowl discounts. Returns data list or None on failure."""
-    session = FishbowlSession(is_test_db=False, login_attempts=1, attempt_wait_secs=0)
+    session = FishbowlSession(is_test_db=is_test_db, login_attempts=5, attempt_wait_secs=1000)
     try:
         result = session.get_discounts()
         return result.get('data')
