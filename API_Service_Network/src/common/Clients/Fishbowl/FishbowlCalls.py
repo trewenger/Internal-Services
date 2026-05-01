@@ -315,3 +315,46 @@ def fb_create_po(token:str, data:dict, is_test_db:bool = False) -> object:
     print("Create PO: ", response.status_code, response.reason)
     data_out = json.loads(response.content) if response.content else None
     return {"status": response.status_code, "reason": response.reason, "data": data_out}
+
+
+def fb_update_discounts(token:str, data:json, is_test_db:bool = False) -> object:
+    """ 
+    Allows JSON formatted data to be imported to Fishbowl for updating discounts. 
+    Use 2D-Arrays/Matrix for data. Returns the POST response.
+    """
+
+    fb_server_address = os.getenv("FISHBOWL_SERVER_ADDRESS")
+    fb_port = os.getenv("FISHBOWL_TEST_PORT") if is_test_db else os.getenv("FISHBOWL_PROD_PORT")
+    url = f"http://{fb_server_address}:{fb_port}/api/import/Discounts"
+
+    headers = {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + str(token)
+    }
+    
+    # Py list to JSON string.
+    payload = json.dumps(data)
+    
+    response = requests.request("POST", url, headers=headers, data=payload)
+    print("Response: ", response.status_code, response.reason)
+    return response
+
+
+def fb_get_discounts(token:str, is_test_db:bool = False) -> object:
+    """
+    Gets all Fishbowl discounts.
+    Returns an object: {'status', 'reason', 'data'}
+    """
+    fb_server_address = os.getenv("FISHBOWL_SERVER_ADDRESS")
+    fb_port = os.getenv("FISHBOWL_TEST_PORT") if is_test_db else os.getenv("FISHBOWL_PROD_PORT")
+    url = f"http://{fb_server_address}:{fb_port}/api/export/Discounts"
+
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + str(token)
+    }
+
+    response = requests.get(url, headers=headers)
+    print("Get Discounts: ", response.status_code, response.reason)
+    data_out = json.loads(response.content) if response.content else None
+    return {"status": response.status_code, "reason": response.reason, "data": data_out}

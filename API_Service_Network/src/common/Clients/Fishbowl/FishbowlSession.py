@@ -167,7 +167,8 @@ class FishbowlSession:
         else:
             print(result["status"], result["reason"], result["data"])
             raise CallFailure(f"Update MO {mo_id} failed: {result['status']} {result['reason']} - {result.get('data')}")
-        
+
+
     def update_po(self, po_id:int, data:dict) -> object:
         """
         Updates a purchase order with the provided payload dict.
@@ -298,3 +299,36 @@ class FishbowlSession:
             print(result.content)
             self.logout()
             raise CallFailure
+
+
+    def update_discounts(self, data) -> object:
+        """
+        Bulk updates discounts in fishbowl using the Discounts import method. 
+        Auto logout on failure. Returns the API POST request response.
+        data must be a 2D-array/matrix. Returns the response and reason code if failure. 
+        """
+        result = fb_update_discounts(self._token, data, self._is_test_db)
+
+        if result.reason == "OK":
+            self._call_count += 1
+            return result
+        else:
+            print(result.content)
+            self.logout()
+            raise CallFailure
+        
+
+    def get_discounts(self) -> object:
+        """
+        Gets all Fishbowl discounts.
+        Raises CallFailure on non-2xx response.
+        """
+        if not self.is_logged_in():
+            raise Exception("Fishbowl session is logged out or inactive.")
+        result = fb_get_discounts(self._token, self._is_test_db)
+        if result["status"] in (200, 201, 202, 203, 204):
+            self._call_count += 1
+            return result
+        else:
+            print(result["status"], result["reason"], result["data"])
+            raise CallFailure(f"Get Discounts failed: {result['status']} {result['reason']} - {result.get('data')}")
