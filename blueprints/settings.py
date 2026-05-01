@@ -9,7 +9,7 @@ import requests, json
 
 settings_bp = Blueprint('settings', __name__)
 
-SECTIONS = ['retail', 'services', 'intuiflow', 'settings']
+SECTIONS = ['retail', 'services', 'intuiflow', 'settings', 'promo']
 SENDER_EMAIL = Config.SENDER_EMAIL
 
 @settings_bp.route('/')

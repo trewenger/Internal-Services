@@ -32,12 +32,23 @@
                     {% if user_access.get('retail', 'none') != 'none' %}
                     <a href="{{ url_for('retail.index') }}"
                        class="px-4 py-2 rounded-md text-sm font-semibold transition
-                              {% if request.path.startswith('/retail') %}
+                              {% if request.path.startswith('/retail') and not request.path.startswith('/retail-promo') %}
                                   bg-blue-500 text-white
                               {% else %}
                                   text-gray-600 hover:bg-gray-100
                               {% endif %}">
                         Retail Inventory Manager
+                    </a>
+                    {% endif %}
+                    {% if user_access.get('promo', 'none') != 'none' %}
+                    <a href="{{ url_for('promo.index') }}"
+                       class="px-4 py-2 rounded-md text-sm font-semibold transition
+                              {% if request.path.startswith('/retail-promo') %}
+                                  bg-blue-500 text-white
+                              {% else %}
+                                  text-gray-600 hover:bg-gray-100
+                              {% endif %}">
+                        Retail Promo Manager
                     </a>
                     {% endif %}
                     {% if user_access.get('services', 'none') != 'none' %}

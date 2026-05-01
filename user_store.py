@@ -9,6 +9,7 @@ _DEFAULT_ACCESS = {
     'services':  'read',
     'intuiflow': 'read',
     'settings':  'none',
+    'promo':     'none',
 }
 
 _ADMIN_ACCESS = {
@@ -16,6 +17,7 @@ _ADMIN_ACCESS = {
     'services':  'write',
     'intuiflow': 'write',
     'settings':  'write',
+    'promo':     'write',
 }
 
 

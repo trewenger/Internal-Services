@@ -1,0 +1,26 @@
+{
+  "promo_codes": {
+    "TEST_RPM_5-1-26": {
+      "name": "TEST_RPM_5-1-26",
+      "description": "Testing the retail promo manager add functionality",
+      "use_type": "unlimited",
+      "start_dt": "2026-05-01T11:41:00",
+      "end_dt": "2026-05-01T11:42:00",
+      "discount_type": "percentage",
+      "discount_amount": 42.0,
+      "status": "inactive",
+      "last_modified": "2026-05-01T11:42:00"
+    },
+    "Here is a rando test": {
+      "name": "Here is a rando test",
+      "description": "testing",
+      "use_type": "unlimited",
+      "start_dt": "2026-05-01T11:44:00",
+      "end_dt": "2026-05-01T11:45:00",
+      "discount_type": "flat",
+      "discount_amount": 20.42,
+      "status": "inactive",
+      "last_modified": "2026-05-01T11:43:11"
+    }
+  }
+}
