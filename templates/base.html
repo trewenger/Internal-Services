@@ -51,17 +51,6 @@
                         Retail Promo Manager
                     </a>
                     {% endif %}
-                    {% if user_access.get('services', 'none') != 'none' %}
-                    <a href="{{ url_for('services.index') }}"
-                       class="px-4 py-2 rounded-md text-sm font-semibold transition
-                              {% if request.path.startswith('/services') %}
-                                  bg-blue-500 text-white
-                              {% else %}
-                                  text-gray-600 hover:bg-gray-100
-                              {% endif %}">
-                        Various Services
-                    </a>
-                    {% endif %}
                     {% if user_access.get('intuiflow', 'none') != 'none' %}
                     <a href="{{ url_for('intuiflow.index') }}"
                        class="px-4 py-2 rounded-md text-sm font-semibold transition
@@ -71,6 +60,28 @@
                                   text-gray-600 hover:bg-gray-100
                               {% endif %}">
                         Intuiflow
+                    </a>
+                    {% endif %}
+                    {% if user_access.get('signage', 'none') != 'none' %}
+                    <a href="{{ url_for('signage.index') }}"
+                       class="px-4 py-2 rounded-md text-sm font-semibold transition
+                              {% if request.path.startswith('/signage') %}
+                                  bg-blue-500 text-white
+                              {% else %}
+                                  text-gray-600 hover:bg-gray-100
+                              {% endif %}">
+                        Digital Signage
+                    </a>
+                    {% endif %}
+                    {% if user_access.get('services', 'none') != 'none' %}
+                    <a href="{{ url_for('services.index') }}"
+                       class="px-4 py-2 rounded-md text-sm font-semibold transition
+                              {% if request.path.startswith('/services') %}
+                                  bg-blue-500 text-white
+                              {% else %}
+                                  text-gray-600 hover:bg-gray-100
+                              {% endif %}">
+                        Various Services
                     </a>
                     {% endif %}
                     {% if user_access.get('settings', 'none') == 'write' %}

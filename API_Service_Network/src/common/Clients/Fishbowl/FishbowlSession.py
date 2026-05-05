@@ -248,6 +248,7 @@ class FishbowlSession:
             return result
         else:
             print(result["status"], result["reason"])
+            print(result.get("data"))
             self.logout()
             raise CallFailure(f"Cycle inventory for part {part_id} failed: {result['status']} {result['reason']}")
 

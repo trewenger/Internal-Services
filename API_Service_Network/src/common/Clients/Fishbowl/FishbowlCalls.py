@@ -274,7 +274,7 @@ def fb_cycle_part_inventory(token:str, part_id:int, payload:dict, is_test_db:boo
 
     response = requests.post(url, headers=headers, data=json.dumps(payload))
     print("Cycle Part Inventory: ", response.status_code, response.reason)
-    return {"status": response.status_code, "reason": response.reason}
+    return {"status": response.status_code, "reason": response.reason, "data":response._content}
 
 
 def fb_create_mo(token:str, data:dict, is_test_db:bool = False) -> object:

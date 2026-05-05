@@ -1,0 +1,12 @@
+{
+  "log_stats": {
+    "total_logs": 0,
+    "last_log": null
+  },
+  "logs": [],
+  "error_stats": {
+    "total_errors": 0,
+    "last_error": null
+  },
+  "errors": []
+}

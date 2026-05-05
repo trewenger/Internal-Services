@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ cfg.name }}</title>
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+
+        #stage { position: relative; width: 100%; height: 100%; }
+
+        .slide {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out;
+        }
+        .slide.active { opacity: 1; }
+
+        .slide img,
+        .slide video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Subtle name label — bottom-right corner */
+        #label {
+            position: fixed;
+            bottom: 1rem;
+            right: 1.25rem;
+            font-family: sans-serif;
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.25);
+            pointer-events: none;
+            user-select: none;
+        }
+
+        /* Slide counter — bottom-left */
+        #counter {
+            position: fixed;
+            bottom: 1rem;
+            left: 1.25rem;
+            font-family: sans-serif;
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.25);
+            pointer-events: none;
+            user-select: none;
+        }
+
+        #empty-msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: sans-serif;
+            font-size: 1rem;
+            color: #555;
+            text-align: center;
+        }
+
+        /* Hide overlays in true fullscreen */
+        :fullscreen #counter,
+        :fullscreen #label          { display: none; }
+        :-webkit-full-screen #counter,
+        :-webkit-full-screen #label { display: none; }
+
+        /* Click-to-fullscreen prompt (shown only when autostart is blocked) */
+        #fs-prompt {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            background: rgba(0, 0, 0, 0.6);
+        }
+        #fs-prompt div {
+            font-family: sans-serif;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.85);
+        }
+        #fs-prompt .main  { font-size: 1rem; }
+        #fs-prompt .sub   { font-size: 0.72rem; opacity: 0.5; margin-top: 0.4rem; }
+
+        /* Fullscreen button — top-right, auto-hides */
+        #fs-btn {
+            position: fixed;
+            top: 1rem;
+            right: 1.25rem;
+            width: 2.25rem;
+            height: 2.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.4);
+            border: none;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.8);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 100;
+        }
+        #fs-btn:hover { background: rgba(0, 0, 0, 0.65); color: #fff; }
+        #fs-btn svg { width: 1.1rem; height: 1.1rem; }
+
+        /* Disabled state screen */
+        #disabled-screen {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 150;
+            background: #0a0a0a;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1.75rem;
+        }
+        #disabled-screen svg {
+            width: 3.5rem;
+            height: 3.5rem;
+            color: rgba(255, 255, 255, 0.12);
+        }
+        #disabled-screen .ds-name {
+            font-family: sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 0.02em;
+        }
+        #disabled-screen .ds-sub {
+            font-family: sans-serif;
+            font-size: 0.72rem;
+            color: rgba(255, 255, 255, 0.18);
+            margin-top: 0.4rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="stage"></div>
+    <div id="fs-prompt">
+        <div>
+            <p class="main">Click to enter fullscreen</p>
+            <p class="sub">Press F or Esc to toggle later</p>
+        </div>
+    </div>
+    <button id="fs-btn" title="Toggle fullscreen (F)"></button>
+    <div id="label">{{ cfg.name }}</div>
+    <div id="counter"></div>
+
+    <div id="disabled-screen">
+        <svg fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+            <line x1="4" y1="4" x2="20" y2="20"/>
+        </svg>
+        <div style="text-align: center;">
+            <p class="ds-name">{{ cfg.name }}</p>
+            <p class="ds-sub">This display is currently disabled</p>
+        </div>
+    </div>
+
+    <script>
+    (() => {
+        let   mediaList  = {{ (cfg.get('media') or []) | tojson }};
+        let   speedMs    = {{ cfg.get('speed_secs', 20) }} * 1000;
+        const SLIDESHOW_KEY = {{ slideshow_key | tojson }};
+        const POLL_MS    = 300_000;
+        const FILE_BASE  = '/signage/media/file/';
+        const VIDEO_EXTS = new Set(['.mp4', '.mov', '.avi', '.mkv', '.webm']);
+
+        const stage   = document.getElementById('stage');
+        const counter = document.getElementById('counter');
+
+        // ── Slide building ───────────────────────────────────────────────────
+        function buildSlide(filename, eager) {
+            const ext     = filename.slice(filename.lastIndexOf('.')).toLowerCase();
+            const isVideo = VIDEO_EXTS.has(ext);
+            const url     = FILE_BASE + encodeURIComponent(filename);
+            const div     = document.createElement('div');
+            div.className = 'slide';
+            if (isVideo) {
+                const v       = document.createElement('video');
+                v.src         = url;
+                v.muted       = true;
+                v.playsInline = true;
+                v.preload     = 'auto';
+                div.appendChild(v);
+            } else {
+                const img   = document.createElement('img');
+                img.src     = url;
+                img.loading = eager ? 'eager' : 'lazy';
+                div.appendChild(img);
+            }
+            stage.appendChild(div);
+            return { el: div, isVideo, filename };
+        }
+
+        let _disabled    = {{ 'true' if not cfg.get('enabled') else 'false' }};
+        let slides       = [];
+        let current      = 0;
+        let advanceTimer = null;
+
+        function initSlides(list) {
+            stage.innerHTML = '';
+            if (!list.length) {
+                stage.innerHTML = '<div id="empty-msg">No media assigned to this slideshow.</div>';
+                slides = [];
+                return;
+            }
+            slides = list.map((f, i) => buildSlide(f, i === 0));
+        }
+
+        function updateCounter() {
+            counter.textContent = slides.length > 1 ? `${current + 1} / ${slides.length}` : '';
+        }
+
+        function goTo(index) {
+            if (!slides.length) return;
+            const prev = slides[current];
+            prev.el.classList.remove('active');
+            const prevVideo = prev.el.querySelector('video');
+            if (prevVideo) { prevVideo.pause(); prevVideo.onended = null; }
+
+            current = (index + slides.length) % slides.length;
+
+            const next = slides[current];
+            next.el.classList.add('active');
+            const nextVideo = next.el.querySelector('video');
+            if (nextVideo) {
+                nextVideo.currentTime = 0;
+                nextVideo.play().catch(() => {});
+            }
+
+            updateCounter();
+            scheduleAdvance();
+        }
+
+        function advance() { goTo(current + 1); }
+
+        function scheduleAdvance() {
+            clearTimeout(advanceTimer);
+            if (slides.length <= 1) return;
+
+            const { isVideo, el } = slides[current];
+            if (isVideo) {
+                el.querySelector('video').onended = advance; // let the video finish naturally
+            } else {
+                advanceTimer = setTimeout(advance, speedMs);
+            }
+        }
+
+        // ── Disabled helpers ─────────────────────────────────────────────────
+        const disabledScreen = document.getElementById('disabled-screen');
+
+        function showDisabled() {
+            _disabled = true;
+            clearTimeout(advanceTimer);
+            if (slides[current]) {
+                const v = slides[current].el.querySelector('video');
+                if (v) { v.pause(); v.onended = null; }
+                slides[current].el.classList.remove('active');
+            }
+            counter.textContent = '';
+            disabledScreen.style.display = 'flex';
+        }
+
+        function hideDisabled() {
+            _disabled = false;
+            disabledScreen.style.display = 'none';
+            initSlides(mediaList);
+            if (slides.length) {
+                slides[0].el.classList.add('active');
+                const v = slides[0].el.querySelector('video');
+                if (v) v.play().catch(() => {});
+                updateCounter();
+                scheduleAdvance();
+            }
+        }
+
+        // ── Init ─────────────────────────────────────────────────────────────
+        if (_disabled) {
+            disabledScreen.style.display = 'flex';
+        } else {
+            initSlides(mediaList);
+            if (slides.length) {
+                slides[0].el.classList.add('active');
+                const firstVideo = slides[0].el.querySelector('video');
+                if (firstVideo) firstVideo.play().catch(() => {});
+                updateCounter();
+                scheduleAdvance();
+            }
+        }
+
+        // ── Polling ──────────────────────────────────────────────────────────
+        async function pollForChanges() {
+            try {
+                const res = await fetch(`/signage/api/slideshow/${encodeURIComponent(SLIDESHOW_KEY)}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data.success) return;
+
+                const enabled  = data.config.enabled ?? true;
+                const newMedia = data.config.media || [];
+                const newSpeed = (data.config.speed_secs || 20) * 1000;
+
+                // Handle enable/disable transitions
+                if (!enabled && !_disabled) { showDisabled(); return; }
+                if (enabled  &&  _disabled) { mediaList = newMedia; speedMs = newSpeed; hideDisabled(); return; }
+                if (_disabled) return;
+
+                // Live updates while running
+                const mediaChanged = JSON.stringify(newMedia) !== JSON.stringify(mediaList);
+                if (newSpeed !== speedMs) speedMs = newSpeed;
+
+                if (mediaChanged) {
+                    mediaList = newMedia;
+                    const currentFilename = slides[current]?.filename;
+                    clearTimeout(advanceTimer);
+                    if (slides[current]) {
+                        const v = slides[current].el.querySelector('video');
+                        if (v) { v.pause(); v.onended = null; }
+                        slides[current].el.classList.remove('active');
+                    }
+                    initSlides(mediaList);
+                    if (!slides.length) return;
+                    const resumeIdx = currentFilename
+                        ? Math.max(0, mediaList.indexOf(currentFilename))
+                        : 0;
+                    current = resumeIdx;
+                    slides[current].el.classList.add('active');
+                    const v = slides[current].el.querySelector('video');
+                    if (v) v.play().catch(() => {});
+                    updateCounter();
+                    scheduleAdvance();
+                }
+            } catch (_) { /* network hiccup — try again next interval */ }
+        }
+
+        setInterval(pollForChanges, POLL_MS);
+
+        // Keyboard: ← previous, → / Space next, F fullscreen
+        document.addEventListener('keydown', e => {
+            if (e.key === 'ArrowRight' || e.key === ' ') { clearTimeout(advanceTimer); advance(); }
+            if (e.key === 'ArrowLeft')                    { clearTimeout(advanceTimer); goTo(current - 1); }
+            if (e.key === 'f' || e.key === 'F')           { toggleFullscreen(); }
+        });
+
+        // ── Fullscreen ──────────────────────────────────────────────────────────
+        // Auto-enter fullscreen on load; show a click prompt if the browser blocks it
+        const fsPrompt = document.getElementById('fs-prompt');
+
+        document.documentElement.requestFullscreen().catch(() => {
+            fsPrompt.style.display = 'flex';
+        });
+
+        fsPrompt.addEventListener('click', () => {
+            fsPrompt.style.display = 'none';
+            document.documentElement.requestFullscreen().catch(() => {});
+        });
+        const ICON_ENTER = `<svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+        </svg>`;
+        const ICON_EXIT = `<svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+        </svg>`;
+
+        const fsBtn = document.getElementById('fs-btn');
+        fsBtn.innerHTML = ICON_ENTER;
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        fsBtn.addEventListener('click', toggleFullscreen);
+
+        document.addEventListener('fullscreenchange', () => {
+            fsBtn.innerHTML = document.fullscreenElement ? ICON_EXIT : ICON_ENTER;
+        });
+
+        // Auto-hide button after 3 s of no mouse movement
+        let hideTimer = null;
+
+        function showControls() {
+            fsBtn.style.opacity = '1';
+            clearTimeout(hideTimer);
+            hideTimer = setTimeout(() => { fsBtn.style.opacity = '0'; }, 3000);
+        }
+
+        document.addEventListener('mousemove', showControls);
+        showControls(); // visible on load, then fades
+    })();
+    </script>
+</body>
+</html>
