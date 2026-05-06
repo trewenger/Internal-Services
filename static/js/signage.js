@@ -15,6 +15,9 @@ let _galleryOffset    = 0;    // current translateX offset in px
 let _galleryAllItems  = [];   // full unfiltered item list
 const _CARD_SLOT      = 156;  // card width (144) + gap (12)
 
+const _sheetCardOpen  = {};   // { key: bool }
+let   _sheets         = {};   // { key: cfg } — kept in sync with server
+
 const VIDEO_EXTS_JS = new Set(['.mp4', '.mov', '.avi', '.mkv', '.webm']);
 
 // Shared insertion-point indicator element (moved in DOM during drag-over)
@@ -508,9 +511,10 @@ function renderAssignedMedia(name) {
     }
 
     items.forEach((filename, i) => {
-        const url     = `/signage/media/file/${encodeURIComponent(filename)}`;
-        const ext     = filename.slice(filename.lastIndexOf('.')).toLowerCase();
-        const isVideo = VIDEO_EXTS_JS.has(ext);
+        const isSheet = filename.startsWith('sheet:');
+        const url     = isSheet ? null : `/signage/media/file/${encodeURIComponent(filename)}`;
+        const ext     = isSheet ? '' : filename.slice(filename.lastIndexOf('.')).toLowerCase();
+        const isVideo = !isSheet && VIDEO_EXTS_JS.has(ext);
 
         const row = document.createElement('div');
         row.className = 'flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-200 mb-1.5 cursor-grab select-none';
@@ -562,10 +566,15 @@ function renderAssignedMedia(name) {
             <circle cx="5" cy="12.5" r="1.3"/><circle cx="11" cy="12.5" r="1.3"/>
         </svg>`;
 
-        // Thumbnail
+        // Thumbnail / icon
         const thumb = document.createElement('div');
-        thumb.className = 'w-10 h-10 rounded overflow-hidden shrink-0 bg-gray-100';
-        if (isVideo) {
+        thumb.className = 'w-10 h-10 rounded overflow-hidden shrink-0 bg-gray-100 flex items-center justify-center';
+        if (isSheet) {
+            thumb.innerHTML = `<svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="18" height="18" rx="2" stroke-width="1.5"/>
+                <path d="M3 9h18M3 15h18M9 3v18" stroke-width="1.5"/>
+            </svg>`;
+        } else if (isVideo) {
             const v = document.createElement('video');
             v.src = url; v.className = 'w-full h-full object-cover'; v.preload = 'metadata'; v.muted = true;
             thumb.appendChild(v);
@@ -575,10 +584,13 @@ function renderAssignedMedia(name) {
             thumb.appendChild(img);
         }
 
-        // Filename
+        // Label
+        const displayName = isSheet
+            ? (_sheets[filename.slice(6)]?.name || filename.slice(6))
+            : filename;
         const label = document.createElement('span');
         label.className = 'flex-1 text-sm text-gray-700 truncate min-w-0';
-        label.textContent = filename;
+        label.textContent = displayName;
         label.title = filename;
 
         // Remove button
@@ -642,6 +654,222 @@ function onAssignedZoneDrop(e, name) {
     if (!_cardMedia[name]) _cardMedia[name] = [];
     _cardMedia[name].push(_dragGalleryFile);
     renderAssignedMedia(name);
+}
+
+// ─── Sheet Resources ──────────────────────────────────────────────────────────
+
+function toggleSheetCard(key) {
+    const body    = document.getElementById(`sheet-card-body-${key}`);
+    const chevron = document.getElementById(`sheet-chevron-${key}`);
+    _sheetCardOpen[key] = !_sheetCardOpen[key];
+    body.classList.toggle('hidden', !_sheetCardOpen[key]);
+    chevron.classList.toggle('rotate-180', !!_sheetCardOpen[key]);
+}
+
+function toggleSheetEnabled(key) {
+    const btn  = document.getElementById(`sheet-toggle-enabled-${key}`);
+    const knob = document.getElementById(`sheet-toggle-knob-${key}`);
+    const now  = btn.dataset.enabled !== 'true';
+    btn.dataset.enabled = now ? 'true' : 'false';
+    btn.classList.toggle('bg-blue-500', now);
+    btn.classList.toggle('bg-gray-300', !now);
+    knob.classList.toggle('translate-x-6', now);
+    knob.classList.toggle('translate-x-1', !now);
+}
+
+// Generic toggle for export option fields (landscape, fitwidth, gridlines)
+function toggleSheetBool(key, field) {
+    const btn  = document.getElementById(`sheet-toggle-${field}-${key}`);
+    const knob = document.getElementById(`sheet-toggle-${field}-knob-${key}`);
+    const now  = btn.dataset.enabled !== 'true';
+    btn.dataset.enabled = now ? 'true' : 'false';
+    btn.classList.toggle('bg-blue-500', now);
+    btn.classList.toggle('bg-gray-300', !now);
+    if (knob) {
+        knob.classList.toggle('translate-x-6', now);
+        knob.classList.toggle('translate-x-1', !now);
+    }
+}
+
+async function saveSheetSettings(key) {
+    const enabled       = document.getElementById(`sheet-toggle-enabled-${key}`).dataset.enabled === 'true';
+    const name          = document.getElementById(`sheet-input-name-${key}`).value.trim();
+    const desc          = document.getElementById(`sheet-input-description-${key}`).value.trim();
+    const sheetId       = document.getElementById(`sheet-input-id-${key}`).value.trim();
+    const interval      = parseInt(document.getElementById(`sheet-input-interval-${key}`).value, 10);
+    const landscape     = document.getElementById(`sheet-toggle-landscape-${key}`).dataset.enabled === 'true';
+    const fitWidth      = document.getElementById(`sheet-toggle-fitwidth-${key}`).dataset.enabled === 'true';
+    const hideGridlines = document.getElementById(`sheet-toggle-gridlines-${key}`).dataset.enabled === 'true';
+    const sheetGid      = document.getElementById(`sheet-input-gid-${key}`).value.trim() || '0';
+    const exportRange   = document.getElementById(`sheet-input-range-${key}`).value.trim();
+
+    if (!name)    { showNotification('Name is required.', 'error'); return; }
+    if (!sheetId) { showNotification('Sheet ID is required.', 'error'); return; }
+
+    try {
+        const res  = await fetch(`/signage/api/sheet/${encodeURIComponent(key)}/update`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name, description: desc, sheet_id: sheetId,
+                refresh_interval_mins: interval, enabled,
+                portrait: !landscape, fit_width: fitWidth,
+                hide_gridlines: hideGridlines, sheet_gid: sheetGid, export_range: exportRange,
+            }),
+        });
+        const data = await res.json();
+        if (!data.success) { showNotification(data.error || 'Save failed.', 'error'); return; }
+        _sheets[key] = data.config;
+        document.getElementById(`sheet-header-name-${key}`).textContent = name;
+        showNotification('Sheet settings saved.');
+        populateSheetPickers();
+    } catch (e) { showNotification('Save failed.', 'error'); }
+}
+
+async function refreshSheet(key) {
+    try {
+        const res  = await fetch(`/signage/api/sheet/${encodeURIComponent(key)}/refresh`, { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) { showNotification(data.error || 'Refresh failed.', 'error'); return; }
+        const label = document.getElementById(`sheet-last-fetched-${key}`);
+        if (label && data.fetched_at) {
+            const d = new Date(data.fetched_at);
+            label.textContent = `Updated ${d.toLocaleTimeString()}`;
+        }
+        if (data.error) { showNotification(`Refreshed with error: ${data.error}`, 'error'); }
+        else            { showNotification('Sheet refreshed — PNG updated.'); }
+    } catch (e) { showNotification('Refresh failed.', 'error'); }
+}
+
+async function deleteSheet(key) {
+    const displayName = document.getElementById(`sheet-header-name-${key}`)?.textContent || key;
+    if (!confirm(`Delete "${displayName}"? This cannot be undone.`)) return;
+    try {
+        const res  = await fetch(`/signage/api/sheet/${encodeURIComponent(key)}/delete`, { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) { showNotification(data.error || 'Delete failed.', 'error'); return; }
+        delete _sheets[key];
+        document.getElementById(`sheet-card-${key}`)?.remove();
+        showNotification(`"${displayName}" deleted.`);
+        populateSheetPickers();
+    } catch (e) { showNotification('Delete failed.', 'error'); }
+}
+
+function toggleNewSheetBool(field) {
+    const btn  = document.getElementById(`new-sheet-toggle-${field}`);
+    const knob = document.getElementById(`new-sheet-toggle-${field}-knob`);
+    const now  = btn.dataset.enabled !== 'true';
+    btn.dataset.enabled = now ? 'true' : 'false';
+    btn.classList.toggle('bg-blue-500', now);
+    btn.classList.toggle('bg-gray-300', !now);
+    if (knob) { knob.classList.toggle('translate-x-6', now); knob.classList.toggle('translate-x-1', !now); }
+}
+
+function _resetNewSheetToggle(field, defaultOn) {
+    const btn  = document.getElementById(`new-sheet-toggle-${field}`);
+    const knob = document.getElementById(`new-sheet-toggle-${field}-knob`);
+    if (!btn) return;
+    btn.dataset.enabled = defaultOn ? 'true' : 'false';
+    btn.classList.toggle('bg-blue-500', defaultOn);
+    btn.classList.toggle('bg-gray-300', !defaultOn);
+    if (knob) { knob.classList.toggle('translate-x-6', defaultOn); knob.classList.toggle('translate-x-1', !defaultOn); }
+}
+
+function openAddSheetModal() {
+    ['new-sheet-name', 'new-sheet-id', 'new-sheet-range'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    document.getElementById('new-sheet-interval').value = '15';
+    document.getElementById('new-sheet-gid').value = '0';
+    _resetNewSheetToggle('landscape', true);
+    _resetNewSheetToggle('fitwidth',  true);
+    _resetNewSheetToggle('gridlines', true);
+    const btn = document.getElementById('create-sheet-btn');
+    btn.disabled = false; btn.textContent = 'Create';
+    document.getElementById('add-sheet-modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('new-sheet-name').focus(), 50);
+}
+
+function closeAddSheetModal() {
+    document.getElementById('add-sheet-modal').classList.add('hidden');
+}
+
+async function submitAddSheet() {
+    const name          = document.getElementById('new-sheet-name').value.trim();
+    const sheetId       = document.getElementById('new-sheet-id').value.trim();
+    const interval      = parseInt(document.getElementById('new-sheet-interval').value, 10) || 15;
+    const landscape     = document.getElementById('new-sheet-toggle-landscape').dataset.enabled === 'true';
+    const fitWidth      = document.getElementById('new-sheet-toggle-fitwidth').dataset.enabled === 'true';
+    const hideGridlines = document.getElementById('new-sheet-toggle-gridlines').dataset.enabled === 'true';
+    const sheetGid      = document.getElementById('new-sheet-gid').value.trim() || '0';
+    const exportRange   = document.getElementById('new-sheet-range').value.trim();
+
+    if (!name)    { showNotification('Name is required.', 'error'); return; }
+    if (!sheetId) { showNotification('Sheet ID is required.', 'error'); return; }
+
+    const btn = document.getElementById('create-sheet-btn');
+    btn.disabled = true; btn.textContent = 'Creating…';
+
+    try {
+        const res  = await fetch('/signage/api/sheet/create', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name, sheet_id: sheetId, refresh_interval_mins: interval,
+                portrait: !landscape, fit_width: fitWidth,
+                hide_gridlines: hideGridlines, sheet_gid: sheetGid, export_range: exportRange,
+            }),
+        });
+        const data = await res.json();
+        if (!data.success) {
+            showNotification(data.error || 'Create failed.', 'error');
+            btn.disabled = false; btn.textContent = 'Create';
+            return;
+        }
+        closeAddSheetModal();
+        window.location.reload();
+    } catch (e) {
+        showNotification('Create failed.', 'error');
+        btn.disabled = false; btn.textContent = 'Create';
+    }
+}
+
+function populateSheetPickers() {
+    // Update the "Add sheet resource…" dropdowns in every slideshow's media tab
+    document.querySelectorAll('[id^="sheet-picker-wrap-"]').forEach(wrap => {
+        const slideshowKey = wrap.id.replace('sheet-picker-wrap-', '');
+        const select       = document.getElementById(`sheet-picker-${slideshowKey}`);
+        if (!select) return;
+
+        // Rebuild options
+        select.innerHTML = '<option value="">Add sheet resource…</option>';
+        Object.entries(_sheets).forEach(([key, cfg]) => {
+            const opt = document.createElement('option');
+            opt.value       = key;
+            opt.textContent = cfg.name || key;
+            select.appendChild(opt);
+        });
+
+        // Show/hide based on whether any sheets exist
+        if (Object.keys(_sheets).length > 0) {
+            wrap.classList.remove('hidden');
+            // Wire up change handler (idempotent — replace each time)
+            select.onchange = () => {
+                const sheetKey = select.value;
+                if (!sheetKey) return;
+                select.value = '';
+                const ref = `sheet:${sheetKey}`;
+                if ((_cardMedia[slideshowKey] || []).includes(ref)) {
+                    showNotification('Already in this slideshow.', 'error');
+                    return;
+                }
+                if (!_cardMedia[slideshowKey]) _cardMedia[slideshowKey] = [];
+                _cardMedia[slideshowKey].push(ref);
+                renderAssignedMedia(slideshowKey);
+            };
+        } else {
+            wrap.classList.add('hidden');
+        }
+    });
 }
 
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
@@ -748,12 +976,19 @@ async function clearAllLogs() {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Seed sheets state
+    if (window.INITIAL_SHEETS) {
+        _sheets = { ...window.INITIAL_SHEETS };
+    }
+
     if (window.INITIAL_MEDIA) {
         Object.entries(window.INITIAL_MEDIA).forEach(([name, mediaList]) => {
             _cardMedia[name] = [...mediaList];
             renderAssignedMedia(name);
         });
     }
+
+    populateSheetPickers();
     refreshData();
     loadLogs();
     loadMedia();
@@ -767,4 +1002,5 @@ document.addEventListener('keydown', e => {
     closePreviewModal();
     closeAddMediaModal();
     closeAddSlideshowModal();
+    closeAddSheetModal();
 });

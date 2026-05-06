@@ -18,9 +18,23 @@ _DEFAULT_SLIDESHOW_CONFIG = {
     'media': []
 }
 
+_DEFAULT_SHEET_CONFIG = {
+    'name': 'Sheet Resource',
+    'description': '',
+    'sheet_id': '',
+    'refresh_interval_mins': 15,
+    'enabled': True,
+    'portrait': False,
+    'fit_width': True,
+    'hide_gridlines': True,
+    'sheet_gid': '0',
+    'export_range': '',
+}
+
 _DEFAULT_CONFIG = {
-    'slideshows': [],
+    'slideshows': {},
     'media': [],
+    'sheets': {},
 }
 
 _DEFAULT_LOG = {
@@ -52,6 +66,8 @@ class Media:
         files = []
         try:
             for filename in os.listdir(self.folder):
+                if filename.startswith('_sheet_'):
+                    continue  # auto-generated sheet snapshots — managed separately
                 ext = os.path.splitext(filename)[1].lower()
                 if ext not in ALLOWED_EXTS:
                     continue
@@ -138,14 +154,23 @@ class SignageConfig:
                 try:
                     with open(self.filepath, 'r', encoding='utf-8') as f:
                         data = json.load(f)
-                    # Backfill new fields and drop stale ones.
                     changed = False
-                    slideshows = data.get("slideshows")
+                    # Backfill slideshows
+                    slideshows = data.get('slideshows', {})
                     for name in slideshows:
-                        cfg = slideshows.get(name)
+                        cfg = slideshows[name]
                         for key, default in _DEFAULT_SLIDESHOW_CONFIG.items():
                             if key not in cfg:
                                 cfg[key] = default
+                                changed = True
+                    # Backfill sheets section
+                    if 'sheets' not in data:
+                        data['sheets'] = {}
+                        changed = True
+                    for key, cfg in data['sheets'].items():
+                        for field, default in _DEFAULT_SHEET_CONFIG.items():
+                            if field not in cfg:
+                                cfg[field] = default
                                 changed = True
                     if changed:
                         self._write_unlocked(data)
@@ -277,6 +302,85 @@ class SignageConfig:
             slideshows[slideshow_name].update(fields)
             self._write_unlocked(all_data)
             return dict(slideshows[slideshow_name])
+
+
+    def get_all_sheets(self) -> dict:
+        """Return all sheet resource configs."""
+        return self._read().get('sheets', {})
+
+    def get_sheet(self, key: str) -> dict | None:
+        """Return one sheet resource config, or None if not found."""
+        return self._read().get('sheets', {}).get(key)
+
+    def create_sheet(self, name: str, sheet_id: str, refresh_interval_mins: int = 15, **extra) -> tuple[str, dict]:
+        """Create a new sheet resource. Returns (key, config_dict)."""
+        with self.lock:
+            for attempt in range(10):
+                try:
+                    with open(self.filepath, 'r', encoding='utf-8') as f:
+                        all_data = json.load(f)
+                    break
+                except (IOError, json.JSONDecodeError):
+                    if attempt < 9:
+                        time.sleep(0.1)
+                    else:
+                        raise
+            sheets = all_data.setdefault('sheets', {})
+            base_key = re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_') or 'sheet'
+            key, n = base_key, 2
+            while key in sheets:
+                key = f'{base_key}_{n}'
+                n += 1
+            allowed_extra = {'portrait', 'fit_width', 'hide_gridlines', 'sheet_gid', 'export_range'}
+            cfg = {**_DEFAULT_SHEET_CONFIG, 'name': name, 'sheet_id': sheet_id,
+                   'refresh_interval_mins': refresh_interval_mins,
+                   **{k: v for k, v in extra.items() if k in allowed_extra}}
+            sheets[key] = cfg
+            self._write_unlocked(all_data)
+            return key, dict(cfg)
+
+    def update_sheet(self, key: str, fields: dict) -> dict:
+        """Merge fields into a sheet resource config. Returns updated config, or {} if not found."""
+        allowed = {'name', 'description', 'sheet_id', 'refresh_interval_mins', 'enabled',
+                   'portrait', 'fit_width', 'hide_gridlines', 'sheet_gid', 'export_range'}
+        fields  = {k: v for k, v in fields.items() if k in allowed}
+        with self.lock:
+            for attempt in range(10):
+                try:
+                    with open(self.filepath, 'r', encoding='utf-8') as f:
+                        all_data = json.load(f)
+                    break
+                except (IOError, json.JSONDecodeError):
+                    if attempt < 9:
+                        time.sleep(0.1)
+                    else:
+                        raise
+            sheets = all_data.get('sheets', {})
+            if key not in sheets:
+                return {}
+            sheets[key].update(fields)
+            self._write_unlocked(all_data)
+            return dict(sheets[key])
+
+    def delete_sheet(self, key: str) -> bool:
+        """Delete a sheet resource. Returns True if deleted, False if not found."""
+        with self.lock:
+            for attempt in range(10):
+                try:
+                    with open(self.filepath, 'r', encoding='utf-8') as f:
+                        all_data = json.load(f)
+                    break
+                except (IOError, json.JSONDecodeError):
+                    if attempt < 9:
+                        time.sleep(0.1)
+                    else:
+                        raise
+            sheets = all_data.get('sheets', {})
+            if key not in sheets:
+                return False
+            del sheets[key]
+            self._write_unlocked(all_data)
+            return True
 
 
 # ============================================================================

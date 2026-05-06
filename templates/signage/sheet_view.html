@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ cfg.name }}</title>
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; background: #0d0d0d; overflow: hidden; font-family: sans-serif; }
+
+        #wrapper {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem 2.5rem 1.5rem;
+        }
+
+        #sheet-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.85);
+            margin-bottom: 1.25rem;
+            letter-spacing: 0.01em;
+            flex-shrink: 0;
+        }
+
+        #table-wrap {
+            flex: 1;
+            overflow: auto;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        thead tr {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        thead th {
+            padding: 0.6rem 0.9rem;
+            text-align: left;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.95);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            white-space: nowrap;
+        }
+
+        tbody tr:nth-child(even) {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        tbody td {
+            padding: 0.55rem 0.9rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 20rem;
+        }
+
+        #footer {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 0.75rem;
+        }
+
+        #footer span {
+            font-size: 0.65rem;
+            color: rgba(255, 255, 255, 0.18);
+        }
+
+        #error-msg {
+            color: rgba(255, 100, 100, 0.7);
+            font-size: 0.75rem;
+        }
+
+        #empty-msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.2);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="wrapper">
+        <div id="sheet-title">{{ cfg.name }}</div>
+        <div id="table-wrap">
+            {% if error and not rows %}
+                <p id="empty-msg">Could not load data</p>
+            {% elif not rows %}
+                <p id="empty-msg">No data in this range</p>
+            {% else %}
+                <table id="data-table">
+                    <thead>
+                        <tr>
+                            {% for cell in rows[0] %}
+                            <th>{{ cell }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows[1:] %}
+                        <tr>
+                            {% for cell in row %}
+                            <td title="{{ cell }}">{{ cell }}</td>
+                            {% endfor %}
+                            {# pad short rows to match header column count #}
+                            {% for _ in range(rows[0]|length - row|length) %}
+                            <td></td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        </div>
+        <div id="footer">
+            <span id="error-msg">{% if error %}Last refresh error: {{ error }}{% endif %}</span>
+            <span id="fetched-label">
+                {% if fetched_at %}Updated {{ fetched_at.strftime('%m/%d %I:%M %p') }}{% endif %}
+            </span>
+        </div>
+    </div>
+
+    <script>
+    (() => {
+        const SHEET_KEY      = {{ sheet_key | tojson }};
+        const REFRESH_MS     = {{ cfg.get('refresh_interval_mins', 15) }} * 60 * 1000;
+        const POLL_URL       = `/signage/api/sheet/${encodeURIComponent(SHEET_KEY)}`;
+
+        async function refresh() {
+            try {
+                const res  = await fetch(POLL_URL);
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data.success) return;
+                // Simplest reliable refresh: reload the iframe page
+                window.location.reload();
+            } catch (_) {}
+        }
+
+        setInterval(refresh, REFRESH_MS);
+    })();
+    </script>
+</body>
+</html>

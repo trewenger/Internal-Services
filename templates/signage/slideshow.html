@@ -102,7 +102,7 @@
             color: rgba(255, 255, 255, 0.8);
             opacity: 0;
             transition: opacity 0.3s ease;
-            z-index: 100;
+            z-index: 160;
         }
         #fs-btn:hover { background: rgba(0, 0, 0, 0.65); color: #fff; }
         #fs-btn svg { width: 1.1rem; height: 1.1rem; }
@@ -168,7 +168,7 @@
         let   mediaList  = {{ (cfg.get('media') or []) | tojson }};
         let   speedMs    = {{ cfg.get('speed_secs', 20) }} * 1000;
         const SLIDESHOW_KEY = {{ slideshow_key | tojson }};
-        const POLL_MS    = 300_000;
+        const POLL_MS    = 600_000;
         const FILE_BASE  = '/signage/media/file/';
         const VIDEO_EXTS = new Set(['.mp4', '.mov', '.avi', '.mkv', '.webm']);
 
@@ -177,11 +177,22 @@
 
         // ── Slide building ───────────────────────────────────────────────────
         function buildSlide(filename, eager) {
+            const div = document.createElement('div');
+            div.className = 'slide';
+
+            if (filename.startsWith('sheet:')) {
+                const key = filename.slice(6);
+                const img = document.createElement('img');
+                img.src   = `${FILE_BASE}_sheet_${encodeURIComponent(key)}.png`;
+                img.style.cssText = 'width:100%;height:auto;display:block;';
+                div.appendChild(img);
+                stage.appendChild(div);
+                return { el: div, isVideo: false, filename };
+            }
+
             const ext     = filename.slice(filename.lastIndexOf('.')).toLowerCase();
             const isVideo = VIDEO_EXTS.has(ext);
             const url     = FILE_BASE + encodeURIComponent(filename);
-            const div     = document.createElement('div');
-            div.className = 'slide';
             if (isVideo) {
                 const v       = document.createElement('video');
                 v.src         = url;
@@ -337,6 +348,19 @@
                     updateCounter();
                     scheduleAdvance();
                 }
+
+                // Bust cache on sheet slide images so the browser re-fetches the
+                // latest PNG from disk, even when the media list hasn't changed.
+                const ts = Date.now();
+                slides.forEach(slide => {
+                    if (slide.filename && slide.filename.startsWith('sheet:')) {
+                        const img = slide.el.querySelector('img');
+                        if (img) {
+                            const key = slide.filename.slice(6);
+                            img.src = `${FILE_BASE}_sheet_${encodeURIComponent(key)}.png?t=${ts}`;
+                        }
+                    }
+                });
             } catch (_) { /* network hiccup — try again next interval */ }
         }
 
