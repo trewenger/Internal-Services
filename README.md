@@ -1,7 +1,7 @@
 # Internal Services V2
 
 Unified internal web interface consolidating multiple tools into a single Flask application
-with tab-based navigation. Deployed on an on-prem server behind IIS (HTTPS via internal AD CS certificate).
+with dropdown navigation. Deployed on an on-prem server behind IIS (HTTPS via internal AD CS certificate).
 
 ---
 
@@ -20,9 +20,11 @@ with tab-based navigation. Deployed on an on-prem server behind IIS (HTTPS via i
 | Section | Description |
 |---|---|
 | Retail Inventory Manager | Live SKU inventory synced from Fishbowl. Manual and automated sync modes. |
+| Retail Promo Manager | Promo code management — create, edit, activate/deactivate discount codes. |
 | Various Services | Scheduled internal reports and health checks (On-Time Performance, Tax System Health, Vendor Tracker, WIP Update). |
-| Intuiflow | Placeholder (coming soon). |
-| Settings | User management — invite, deactivate, reactivate, access control. |
+| Intuiflow | Automated Fishbowl work order pipeline — import pending orders, update/close work orders, upload FB files. Full and partial sync modes with scheduling. |
+| Digital Signage | Slideshow management — create/control slideshows, media upload, dedicated preview pages, Google Sheets embed views. |
+| Settings | User management — invite, deactivate, reactivate, access control. Update & Restart button to pull latest changes and restart the service via NSSM. |
 
 ---
 
@@ -98,17 +100,20 @@ will not function until real values are provided).
 
 ```
 INTERNAL_SERVICES_V2/
-├── app.py              ← Flask entry point (dev)
-├── serve.py            ← Waitress entry point (production)
-├── config.py           ← All env-based config (single source of truth)
-├── user_store.py       ← UserStore class — all reads/writes to credentials.json
-├── blueprints/         ← One blueprint per section (auth, retail, services, settings, intuiflow)
-├── templates/          ← Jinja2 templates, namespaced per section
-├── static/js/          ← Frontend JS (retail.js)
+├── app.py                         ← Flask entry point (dev)
+├── serve.py                       ← Waitress entry point (production)
+├── config.py                      ← All env-based config (single source of truth)
+├── user_store.py                  ← UserStore class — all reads/writes to credentials.json
+├── update_and_restart_service.bat ← Stops NSSM, pulls latest GitHub changes, restarts NSSM
+├── blueprints/                    ← One blueprint per section (auth, retail, promo, services, settings, signage, intuiflow)
+├── templates/                     ← Jinja2 templates, namespaced per section
+├── static/js/                     ← Frontend JS (retail.js, promo.js, services.js, signage.js, intuiflow.js)
 └── API_Service_Network/
-    ├── src/common/     ← Shared API clients (Fishbowl, Email, Google, etc.)
-    ├── RetailInventoryManager/   ← InventoryData, Logger, FishbowlSync classes
-    └── VariousInternalServices/  ← 4 service scripts + scheduler config
+    ├── src/common/              ← Shared API clients (Fishbowl, Email, Google, etc.)
+    ├── RetailInventoryManager/  ← InventoryData, Logger, FishbowlSync classes
+    ├── RetailPromoManager/      ← PromoData, PromoLog, PromoManager classes
+    ├── VariousInternalServices/ ← 4 service scripts + scheduler config
+    └── Intuiflow/               ← 4 call stack modules + IntuiflowConfig/IntuiflowLog
 ```
 
 ---
@@ -132,4 +137,9 @@ These files are excluded from git and created automatically on first run:
 | `credentials.json` | User store (seeded with `admin / changeme`) |
 | `API_Service_Network/RetailInventoryManager/data.json` | SKU data + RIM config |
 | `API_Service_Network/RetailInventoryManager/log.json` | Error log + audit log |
+| `API_Service_Network/RetailPromoManager/promo_data.json` | Promo code store |
+| `API_Service_Network/RetailPromoManager/promo_log.json` | Promo run history |
 | `API_Service_Network/VariousInternalServices/services_config.json` | Service schedule + run state |
+| `API_Service_Network/VariousInternalServices/services_log.json` | Service run history |
+| `API_Service_Network/Intuiflow/intuiflow_config.json` | Pipeline/module config (schedule, notify, last_run) |
+| `API_Service_Network/Intuiflow/intuiflow_log.json` | Pipeline/module run history |

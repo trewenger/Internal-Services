@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}How To Guide - Retail Promo Manager{% endblock %}
+
+{% block content %}
+<div class="min-h-screen p-6 bg-gray-100">
+    <div class="max-w-5xl mx-auto">
+
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">How To Guide</h1>
+                    <p class="text-gray-600 mt-1">Learn how to use the Retail Promo Manager</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('promo.index') }}"
+                       class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition">
+                        Back to App
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table of Contents -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+            <h2 class="text-xl font-bold text-blue-900 mb-4">Table of Contents</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-blue-700">
+                <a href="#overview" class="hover:underline">1. System Overview</a>
+                <a href="#statuses" class="hover:underline">2. Promo Statuses</a>
+                <a href="#adding" class="hover:underline">3. Adding a Promo Code</a>
+                <a href="#editing" class="hover:underline">4. Editing a Promo Code</a>
+                <a href="#inactivating" class="hover:underline">5. Manually Inactivating</a>
+                <a href="#scheduler" class="hover:underline">6. How the Scheduler Works</a>
+                <a href="#logs" class="hover:underline">7. Logs &amp; Errors</a>
+            </div>
+        </div>
+
+        <!-- 1. System Overview -->
+        <div id="overview" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">1. System Overview</h2>
+            <p class="text-gray-700 mb-3">
+                The Retail Promo Manager creates and schedules promotional discount codes in Fishbowl.
+                You define a promo code, a discount amount, and a start and end window. The system
+                automatically activates the discount in Fishbowl at the start time and deactivates it
+                at the end time — no manual intervention required once the promo is saved.
+            </p>
+            <div class="bg-gray-50 border rounded p-4">
+                <h3 class="font-semibold text-gray-800 mb-2">Key Features:</h3>
+                <ul class="list-disc list-inside text-gray-700 space-y-1">
+                    <li>Automatic activation and deactivation via a scheduled date trigger</li>
+                    <li>Percentage or flat-amount discount types</li>
+                    <li>Startup recovery — missed activations or expirations are caught on server restart</li>
+                    <li>Full activity log per promo code</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 2. Promo Statuses -->
+        <div id="statuses" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">2. Promo Statuses</h2>
+            <p class="text-gray-700 mb-4">Every promo code is always in one of three states:</p>
+            <div class="space-y-3">
+                <div class="flex items-start gap-3 border rounded-lg p-4">
+                    <span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full shrink-0 mt-0.5">Pending</span>
+                    <p class="text-gray-700">The promo has been created and registered in Fishbowl but the start datetime has not yet arrived. A scheduled job is waiting to activate it.</p>
+                </div>
+                <div class="flex items-start gap-3 border rounded-lg p-4">
+                    <span class="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full shrink-0 mt-0.5">Active</span>
+                    <p class="text-gray-700">The discount is live in Fishbowl. A scheduled job is waiting to deactivate it at the end datetime.</p>
+                </div>
+                <div class="flex items-start gap-3 border rounded-lg p-4">
+                    <span class="bg-gray-100 text-gray-600 text-xs font-bold px-3 py-1 rounded-full shrink-0 mt-0.5">Inactive</span>
+                    <p class="text-gray-700">The discount has been deactivated in Fishbowl. The window has passed or the promo was manually inactivated. No scheduled job is running.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Adding a Promo Code -->
+        <div id="adding" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">3. Adding a Promo Code</h2>
+            <div class="space-y-3 mb-4">
+                <div class="flex items-start gap-3">
+                    <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+                    <p class="text-gray-700">Click <span class="font-semibold text-blue-600">+ Add Promo</span> to open the add modal.</p>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+                    <div>
+                        <p class="text-gray-700 mb-2">Fill in all required fields:</p>
+                        <ul class="list-disc list-inside text-gray-700 space-y-1 ml-4">
+                            <li><span class="font-semibold">Promo Code Name</span> — the exact code that will be created in Fishbowl. Must be unique across both the system and Fishbowl.</li>
+                            <li><span class="font-semibold">Description</span> — a label for internal reference.</li>
+                            <li><span class="font-semibold">Start Date &amp; Time</span> — when the discount should activate (PST).</li>
+                            <li><span class="font-semibold">End Date &amp; Time</span> — when the discount should deactivate (PST). Must be in the future and after the start time.</li>
+                            <li><span class="font-semibold">Discount Type</span> — Percentage (e.g. 10%) or Flat Amount (e.g. $5 off).</li>
+                            <li><span class="font-semibold">Discount Amount</span> — the numeric value. Percentages must be between 1 and 100.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+                    <p class="text-gray-700">Click <span class="font-semibold">Save</span>. The system registers the discount in Fishbowl first — if that call fails, the promo is not saved.</p>
+                </div>
+            </div>
+            <div class="bg-blue-50 border border-blue-200 rounded p-4">
+                <span class="font-semibold">Tip:</span> If the start time has already passed when you save the promo, it will activate immediately rather than waiting.
+            </div>
+        </div>
+
+        <!-- 4. Editing a Promo Code -->
+        <div id="editing" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">4. Editing a Promo Code</h2>
+            <p class="text-gray-700 mb-4">
+                Click the <span class="font-semibold text-blue-600">Edit</span> button on any promo row to open
+                the edit modal. The promo code name cannot be changed — all other fields can be updated.
+            </p>
+            <div class="space-y-3 mb-4">
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-base font-semibold text-gray-800 mb-1">Editing a Pending promo</h3>
+                    <p class="text-gray-700">The promo is reset to Pending and rescheduled at the new start datetime. If the new start has already passed, it activates immediately.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-base font-semibold text-gray-800 mb-1">Editing an Active promo</h3>
+                    <p class="text-gray-700">The updated discount values are synced to Fishbowl immediately and the deactivation job is rescheduled at the new end time. If the new end time is in the past, the promo deactivates immediately.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-base font-semibold text-gray-800 mb-1">Editing an Inactive promo</h3>
+                    <p class="text-gray-700">The promo is reset to Pending and re-evaluated against the new window. If the window has already passed, it stays Inactive.</p>
+                </div>
+            </div>
+            <div class="bg-yellow-50 border border-yellow-200 rounded p-4">
+                <span class="font-semibold">Note:</span> The end datetime must always be in the future and occur after the start date at the time of saving.
+            </div>
+        </div>
+
+        <!-- 5. Manually Inactivating -->
+        <div id="inactivating" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">5. Manually Inactivating a Promo</h2>
+            <p class="text-gray-700 mb-4">
+                To end a promo before its scheduled end time, click the
+                <span class="font-semibold text-red-600">Inactivate</span> button on the promo row.
+                The system immediately deactivates the discount in Fishbowl and cancels the scheduled
+                deactivation job. 
+            </p>
+            <div class="bg-yellow-50 border border-yellow-200 rounded p-4">
+                <span class="font-semibold">Note:</span> The Inactivate button is only shown for Pending and Active promos. Already-inactive promos have no button.
+            </div>
+        </div>
+
+        <!-- 6. How the Scheduler Works -->
+        <div id="scheduler" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">6. How the Scheduler Works</h2>
+            <p class="text-gray-700 mb-4">
+                The Promo Manager uses <span class="font-semibold">date triggers</span> — one-shot scheduled
+                jobs that fire at a specific datetime rather than on a recurring interval.
+            </p>
+            <div class="space-y-3 mb-4">
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-base font-semibold text-gray-800 mb-1">Pending promo</h3>
+                    <p class="text-gray-700">A job is scheduled to fire at the start datetime. When it fires, the discount is activated in Fishbowl and a second job is immediately created to fire at the end datetime.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-base font-semibold text-gray-800 mb-1">Active promo</h3>
+                    <p class="text-gray-700">A job is scheduled to fire at the end datetime. When it fires, the discount is deactivated in Fishbowl and no further jobs are created.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-base font-semibold text-gray-800 mb-1">Server restart recovery</h3>
+                    <p class="text-gray-700">On startup, the system checks every promo against the current time. Any promo whose start or end window was missed while the server was down is handled immediately — activations that were missed are fired, and expirations that were missed are applied. You do not need to manually fix anything after a restart.</p>
+                </div>
+            </div>
+            <div class="bg-gray-50 border rounded p-4">
+                <span class="font-semibold">The "Next Run" column</span> in the promo table shows when the next scheduled job will fire for each promo. If a promo is Inactive, no job is scheduled and this column is blank.
+            </div>
+        </div>
+
+        <!-- 7. Logs & Errors -->
+        <div id="logs" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">7. Logs &amp; Errors</h2>
+            <p class="text-gray-700 mb-4">
+                The log panel at the bottom of the page tracks every action taken on every promo —
+                creations, activations, deactivations, edits, and failures — along with who or what
+                triggered the action (a user or the scheduler).
+            </p>
+            <div class="space-y-3 mb-4">
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-red-600 mb-1">Recent Errors</h3>
+                    <p class="text-gray-700">Entries where a Fishbowl call failed or the promo could not be processed. Check here first when a promo does not activate or deactivate as expected.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-blue-600 mb-1">Recent Logs</h3>
+                    <p class="text-gray-700">All activity, including successful activations and deactivations. Each entry shows the promo name, action type, triggered-by, result, and a description of what happened.</p>
+                </div>
+            </div>
+            <div class="bg-blue-50 border border-blue-200 rounded p-4">
+                <span class="font-semibold">Tip:</span> Use the <span class="font-semibold text-green-600">Refresh</span> button to reload logs after a recent action. Use <span class="font-semibold">Clear All</span> to permanently delete log history from the respective panel.
+            </div>
+        </div>
+
+        <!-- Back button -->
+        <div class="text-center mb-6">
+            <a href="{{ url_for('promo.index') }}"
+               class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition text-lg inline-block">
+                Back to App
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

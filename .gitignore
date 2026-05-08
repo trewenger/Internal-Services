@@ -61,3 +61,9 @@ API_Service_Network/Intuiflow/.old_files
 API_Service_Network/Intuiflow/intuiflow_config.json
 API_Service_Network/Intuiflow/intuiflow_log.json
 retail-promo-manager-spec.md
+API_Service_Network/RetailPromoManager/promo_data.json
+API_Service_Network/RetailPromoManager/promo_log.json
+API_Service_Network/DigitalDisplayBoard/media
+API_Service_Network/DigitalDisplayBoard/ddb_config.json
+API_Service_Network/DigitalDisplayBoard/ddb_log.json
+update_and_restart_service.bat
