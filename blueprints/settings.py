@@ -180,15 +180,15 @@ def ping():
     return jsonify({'ok': True})
 
 
+_TASK_NAME = 'InternalServicesUpdate'
+
+
 @settings_bp.route('/restart', methods=['POST'])
 @access_required('settings', 'write')
 def restart():
-    if not os.path.isfile(_BAT_PATH):
-        return jsonify({'error': f'Script not found: {_BAT_PATH}'}), 500
-
     def _launch():
         subprocess.Popen(
-            ['cmd', '/c', _BAT_PATH],
+            ['schtasks', '/run', '/tn', _TASK_NAME],
             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
