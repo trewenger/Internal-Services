@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}How To Guide - Digital Signage Manager{% endblock %}
+
+{% block content %}
+<div class="min-h-screen p-6 bg-gray-100">
+    <div class="max-w-5xl mx-auto">
+
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">How To Guide</h1>
+                    <p class="text-gray-600 mt-1">Learn how to use the Digital Signage Manager</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('signage.index') }}"
+                       class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition">
+                        Back to App
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table of Contents -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+            <h2 class="text-xl font-bold text-blue-900 mb-4">Table of Contents</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-blue-700">
+                <a href="#overview" class="hover:underline">1. System Overview</a>
+                <a href="#media" class="hover:underline">2. Media Library</a>
+                <a href="#slideshows" class="hover:underline">3. Slideshows</a>
+                <a href="#preview" class="hover:underline">4. Slideshow Preview Page</a>
+                <a href="#sheets" class="hover:underline">5. Google Sheet Resources</a>
+            </div>
+        </div>
+
+        <!-- 1. System Overview -->
+        <div id="overview" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">1. System Overview</h2>
+            <p class="text-gray-700 mb-3">
+                The Digital Signage Manager controls what is displayed on internal display boards.
+                Content is added to <span class="font-semibold">Slideshows</span>, and multiple can be defined at once.
+                It has two main content types: images and videos and Google Sheet Resources
+                (live snapshots of Google Sheets rendered as images). Both types can be attached to
+                a slideshow that handles displaying the content.
+            </p>
+            <div class="bg-gray-50 border rounded p-4">
+                <h3 class="font-semibold text-gray-800 mb-2">Key Features:</h3>
+                <ul class="list-disc list-inside text-gray-700 space-y-1">
+                    <li>Upload and manage a shared media library (images and videos)</li>
+                    <li>Create multiple slideshows, each with its own media selection and slide speed</li>
+                    <li>Each slideshow gets its own URL endpoint, so you can control what displays are viewing which slideshow</li>
+                    <li>Dedicated per-slideshow preview pages that poll for live updates</li>
+                    <li>Connect Google Sheets and have them auto-refresh as PNG images on a set interval</li>
+                    <li>Sheet images can be included in slideshows alongside regular media</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 2. Media Library -->
+        <div id="media" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">2. Media Library</h2>
+            <p class="text-gray-700 mb-4">
+                The media library is a shared pool of files available to all slideshows. Upload
+                images or videos here first, then assign them to individual slideshows.
+            </p>
+
+            <div class="mb-5">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Uploading Files</h3>
+                <div class="space-y-3">
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+                        <p class="text-gray-700">In the <span class="font-semibold">Media Library</span> section, click <span class="font-semibold text-blue-600">Upload Media</span>.</p>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+                        <p class="text-gray-700">Select one or more image or video files. Multiple files can be uploaded in a single selection.</p>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+                        <p class="text-gray-700">Uploaded files appear in the library and are immediately available to add to any slideshow.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Deleting Files</h3>
+                <p class="text-gray-700">
+                    Click the delete icon on any media item. The file is removed from the library
+                    and automatically removed from any slideshow it was assigned to.
+                </p>
+            </div>
+
+            <div class="bg-yellow-50 border border-yellow-200 rounded p-4">
+                <span class="font-semibold">Note:</span> Only supported image and video file types can be uploaded. Unsupported file types will be rejected with an error.
+            </div>
+        </div>
+
+        <!-- 3. Slideshows -->
+        <div id="slideshows" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">3. Slideshows</h2>
+            <p class="text-gray-700 mb-4">
+                A slideshow is a named, ordered collection of media items that cycles automatically
+                on the preview page. You can have multiple slideshows and point different displays
+                at different preview URLs.
+            </p>
+
+            <div class="mb-5">
+                <h3 class="text-lg font-semibold text-gray-800 mb-3">Creating a Slideshow</h3>
+                <div class="space-y-3">
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+                        <p class="text-gray-700">Click <span class="font-semibold text-blue-600">+ New Slideshow</span>.</p>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+                        <p class="text-gray-700">Enter a <span class="font-semibold">name</span>, an optional description, and a <span class="font-semibold">slide speed</span> in seconds (how long each slide is shown before advancing).</p>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+                        <p class="text-gray-700">Click <span class="font-semibold">Create</span>. The slideshow appears in the list, initially empty.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-5">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Managing Slideshow Content</h3>
+                <p class="text-gray-700 mb-2">
+                    Expand a slideshow card to manage its content:
+                </p>
+                <ul class="list-disc list-inside text-gray-700 space-y-1 ml-4">
+                    <li><span class="font-semibold">Add media</span> — select items from the media library and drag them into the slideshow card to include them. Sheet resource images can also be added here via the dropdown.</li>
+                    <li><span class="font-semibold">Remove media</span> — click the remove icon on any assigned item to take it out of the slideshow (the file/resource stays in the library).</li>
+                    <li><span class="font-semibold">Slide speed</span> — edit the seconds-per-slide setting and save.</li>
+                    <li><span class="font-semibold">Enable / Disable</span> — a disabled slideshow's preview page will show a blank or waiting state.</li>
+                </ul>
+            </div>
+
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Deleting a Slideshow</h3>
+                <p class="text-gray-700">
+                    Click <span class="font-semibold text-red-600">Delete</span> on the slideshow card.
+                    This removes the slideshow configuration only — it does not delete any media files
+                    from the library.
+                </p>
+            </div>
+        </div>
+
+        <!-- 4. Slideshow Preview Page -->
+        <div id="preview" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">4. Slideshow Preview Page</h2>
+            <p class="text-gray-700 mb-4">
+                Each slideshow has a dedicated full-screen preview page at
+                <code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm">/signage/slideshow/&lt;slideshow-name&gt;</code>.
+                This is the URL you point a display board browser to.
+            </p>
+            <div class="space-y-3 mb-4">
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-base font-semibold text-gray-800 mb-1">Live Updates</h3>
+                    <p class="text-gray-700">The preview page polls the server periodically for changes to the slideshow's media list and settings. When you add or remove a slide in the manager, the display board picks it up automatically without needing to be refreshed.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-base font-semibold text-gray-800 mb-1">Opening the Preview</h3>
+                    <p class="text-gray-700">Click the <span class="font-semibold text-blue-600">Preview</span> link on any slideshow card to open its preview page in a new tab.</p>
+                </div>
+            </div>
+            <div class="bg-blue-50 border border-blue-200 rounded p-4">
+                <span class="font-semibold">Tip:</span> On the display board computer, open the preview URL in a full-screen browser window. Because the page polls for changes, you rarely need to touch the display itself after the initial setup.
+            </div>
+        </div>
+
+        <!-- 5. Google Sheet Resources -->
+        <div id="sheets" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">5. Google Sheet Resources</h2>
+            <p class="text-gray-700 mb-4">
+                A Sheet Resource connects a Google Sheet to the signage system. The sheet is exported
+                as a PNG image on a configurable interval and stored on the server. That image can then
+                be added to any slideshow like a regular media file — so your display boards can show
+                live data from a spreadsheet.
+            </p>
+
+            <div class="mb-5">
+                <h3 class="text-lg font-semibold text-gray-800 mb-3">Adding a Sheet Resource</h3>
+                <div class="space-y-3">
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+                        <p class="text-gray-700">In the <span class="font-semibold">Sheet Resources</span> section, click <span class="font-semibold text-blue-600">+ Add Sheet</span>.</p>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+                        <div>
+                            <p class="text-gray-700 mb-2">Fill in the required fields:</p>
+                            <ul class="list-disc list-inside text-gray-700 space-y-1 ml-4">
+                                <li><span class="font-semibold">Name</span> — a display label for this sheet resource.</li>
+                                <li><span class="font-semibold">Sheet ID</span> — the long ID string from the Google Sheet URL (the part between <code class="bg-gray-100 px-1 rounded text-xs">/d/</code> and <code class="bg-gray-100 px-1 rounded text-xs">/edit</code>).</li>
+                                <li><span class="font-semibold">Refresh Interval</span> — how often (in minutes) the PNG should be regenerated from the live sheet.</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+                        <p class="text-gray-700">Optionally configure additional export settings: sheet tab (GID), portrait orientation, fit to width, hide gridlines, or a specific cell range to export.</p>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">4</span>
+                        <p class="text-gray-700">Click <span class="font-semibold">Save</span>. The system fetches and renders the sheet immediately. The image is then refreshed automatically at the configured interval.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-3 mb-4">
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-base font-semibold text-gray-800 mb-1">Manual Refresh</h3>
+                    <p class="text-gray-700">Click <span class="font-semibold text-blue-600">Refresh Now</span> on a sheet card to immediately re-fetch and re-render the sheet outside the normal schedule. Useful after making changes to the spreadsheet that you want to appear on the display right away.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-base font-semibold text-gray-800 mb-1">Adding a Sheet to a Slideshow</h3>
+                    <p class="text-gray-700">Once a Sheet Resource exists, add it via the dropdown in the slideshow media settings.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-base font-semibold text-gray-800 mb-1">Deleting a Sheet Resource</h3>
+                    <p class="text-gray-700">Click <span class="font-semibold text-red-600">Delete</span> on the sheet card. The resource is removed, its cached PNG is deleted, and it is automatically removed from any slideshows that included it.</p>
+                </div>
+            </div>
+
+            <div class="bg-yellow-50 border border-yellow-200 rounded p-4">
+                <span class="font-semibold">Note:</span> Sheet resources require the server's Google service account to have at least Viewer access to the spreadsheet. If the refresh fails, the last successfully rendered image remains in the slideshow until a successful refresh occurs. Adding sheet resources is a complex process, be sure you understand what you are doing and test often.
+            </div>
+        </div>
+
+        <!-- Back button -->
+        <div class="text-center mb-6">
+            <a href="{{ url_for('signage.index') }}"
+               class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition text-lg inline-block">
+                Back to App
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

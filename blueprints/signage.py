@@ -344,3 +344,9 @@ def api_clear_logs():
 def api_clear_errors():
     count = signage_log.clear_errors()
     return jsonify({'success': True, 'count': count})
+
+
+@signage_bp.route('/how-to')
+@access_required('signage')
+def how_to():
+    return render_template('signage/how_to.html')

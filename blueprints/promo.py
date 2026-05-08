@@ -405,3 +405,9 @@ def api_clear_logs():
 def api_clear_errors():
     count = promo_logger.clear_errors()
     return jsonify({'success': True, 'count': count})
+
+
+@promo_bp.route('/how-to')
+@access_required('promo')
+def how_to():
+    return render_template('promo/how_to.html')
