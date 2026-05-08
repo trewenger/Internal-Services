@@ -23,82 +23,98 @@
     <!-- Top Navigation Bar -->
     <div class="bg-white shadow-md sticky top-0 z-40">
         <div class="max-w-7xl mx-auto px-6">
-            <div class="flex items-center justify-between h-14">
-                <!-- App name -->
-                <span class="text-lg font-bold text-gray-800">Internal Services</span>
-
-                <!-- Tabs -->
-                <div class="flex items-center gap-1">
-                    {% if user_access.get('retail', 'none') != 'none' %}
-                    <a href="{{ url_for('retail.index') }}"
-                       class="px-4 py-2 rounded-md text-sm font-semibold transition
-                              {% if request.path.startswith('/retail') and not request.path.startswith('/retail-promo') %}
-                                  bg-blue-500 text-white
-                              {% else %}
-                                  text-gray-600 hover:bg-gray-100
-                              {% endif %}">
-                        Retail Inventory Manager
-                    </a>
-                    {% endif %}
-                    {% if user_access.get('promo', 'none') != 'none' %}
-                    <a href="{{ url_for('promo.index') }}"
-                       class="px-4 py-2 rounded-md text-sm font-semibold transition
-                              {% if request.path.startswith('/retail-promo') %}
-                                  bg-blue-500 text-white
-                              {% else %}
-                                  text-gray-600 hover:bg-gray-100
-                              {% endif %}">
-                        Retail Promo Manager
-                    </a>
-                    {% endif %}
-                    {% if user_access.get('intuiflow', 'none') != 'none' %}
-                    <a href="{{ url_for('intuiflow.index') }}"
-                       class="px-4 py-2 rounded-md text-sm font-semibold transition
-                              {% if request.path.startswith('/intuiflow') %}
-                                  bg-blue-500 text-white
-                              {% else %}
-                                  text-gray-600 hover:bg-gray-100
-                              {% endif %}">
-                        Intuiflow
-                    </a>
-                    {% endif %}
-                    {% if user_access.get('signage', 'none') != 'none' %}
-                    <a href="{{ url_for('signage.index') }}"
-                       class="px-4 py-2 rounded-md text-sm font-semibold transition
-                              {% if request.path.startswith('/signage') %}
-                                  bg-blue-500 text-white
-                              {% else %}
-                                  text-gray-600 hover:bg-gray-100
-                              {% endif %}">
-                        Digital Signage
-                    </a>
-                    {% endif %}
-                    {% if user_access.get('services', 'none') != 'none' %}
-                    <a href="{{ url_for('services.index') }}"
-                       class="px-4 py-2 rounded-md text-sm font-semibold transition
-                              {% if request.path.startswith('/services') %}
-                                  bg-blue-500 text-white
-                              {% else %}
-                                  text-gray-600 hover:bg-gray-100
-                              {% endif %}">
-                        Various Services
-                    </a>
-                    {% endif %}
-                    {% if user_access.get('settings', 'none') == 'write' %}
-                    <a href="{{ url_for('settings.index') }}"
-                       class="px-4 py-2 rounded-md text-sm font-semibold transition
-                              {% if request.path.startswith('/settings') %}
-                                  bg-blue-500 text-white
-                              {% else %}
-                                  text-gray-600 hover:bg-gray-100
-                              {% endif %}">
-                        Settings
-                    </a>
-                    {% endif %}
+            <div class="flex items-center h-14">
+                <!-- Left third: App name -->
+                <div class="flex-1 flex items-center">
+                    <span class="text-lg font-bold text-gray-800">Internal Services</span>
                 </div>
 
-                <!-- User + logout -->
-                <div class="flex items-center gap-3 text-sm">
+                <!-- Center third: Navigation Dropdown -->
+                {% set _path = request.path %}
+                {% if _path.startswith('/retail-promo') %}
+                    {% set _current = 'Retail Promo Manager' %}
+                {% elif _path.startswith('/retail') %}
+                    {% set _current = 'Retail Inventory Manager' %}
+                {% elif _path.startswith('/intuiflow') %}
+                    {% set _current = 'Intuiflow' %}
+                {% elif _path.startswith('/signage') %}
+                    {% set _current = 'Digital Signage' %}
+                {% elif _path.startswith('/services') %}
+                    {% set _current = 'Various Services' %}
+                {% elif _path.startswith('/settings') %}
+                    {% set _current = 'Settings' %}
+                {% else %}
+                    {% set _current = 'Navigate' %}
+                {% endif %}
+                <div class="flex-1 flex items-center justify-center">
+                <div class="relative w-full" id="nav-dropdown-container">
+                    <button id="nav-dropdown-btn"
+                            onclick="toggleNavDropdown()"
+                            class="w-full flex items-center justify-between gap-2 px-4 py-2 rounded-md text-sm font-semibold bg-blue-500 text-white hover:bg-blue-600 transition select-none">
+                        <span id="nav-dropdown-label">{{ _current }}</span>
+                        <svg id="nav-dropdown-chevron" class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+                    <div id="nav-dropdown-menu"
+                         class="hidden absolute left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 overflow-hidden">
+                        {% if user_access.get('retail', 'none') != 'none' %}
+                        <a href="{{ url_for('retail.index') }}"
+                           class="flex items-center gap-2 px-4 py-2 text-sm font-medium transition
+                                  {% if _current == 'Retail Inventory Manager' %}bg-blue-50 text-blue-600{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+                            {% if _current == 'Retail Inventory Manager' %}<span class="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>{% else %}<span class="w-1.5 h-1.5 flex-shrink-0"></span>{% endif %}
+                            Retail Inventory Manager
+                        </a>
+                        {% endif %}
+                        {% if user_access.get('promo', 'none') != 'none' %}
+                        <a href="{{ url_for('promo.index') }}"
+                           class="flex items-center gap-2 px-4 py-2 text-sm font-medium transition
+                                  {% if _current == 'Retail Promo Manager' %}bg-blue-50 text-blue-600{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+                            {% if _current == 'Retail Promo Manager' %}<span class="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>{% else %}<span class="w-1.5 h-1.5 flex-shrink-0"></span>{% endif %}
+                            Retail Promo Manager
+                        </a>
+                        {% endif %}
+                        {% if user_access.get('signage', 'none') != 'none' %}
+                        <a href="{{ url_for('signage.index') }}"
+                           class="flex items-center gap-2 px-4 py-2 text-sm font-medium transition
+                                  {% if _current == 'Digital Signage' %}bg-blue-50 text-blue-600{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+                            {% if _current == 'Digital Signage' %}<span class="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>{% else %}<span class="w-1.5 h-1.5 flex-shrink-0"></span>{% endif %}
+                            Digital Signage Manager
+                        </a>
+                        {% endif %}
+                        {% if user_access.get('intuiflow', 'none') != 'none' %}
+                        <a href="{{ url_for('intuiflow.index') }}"
+                           class="flex items-center gap-2 px-4 py-2 text-sm font-medium transition
+                                  {% if _current == 'Intuiflow' %}bg-blue-50 text-blue-600{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+                            {% if _current == 'Intuiflow' %}<span class="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>{% else %}<span class="w-1.5 h-1.5 flex-shrink-0"></span>{% endif %}
+                            Intuiflow
+                        </a>
+                        {% endif %}
+                        {% if user_access.get('services', 'none') != 'none' %}
+                        <a href="{{ url_for('services.index') }}"
+                           class="flex items-center gap-2 px-4 py-2 text-sm font-medium transition
+                                  {% if _current == 'Various Services' %}bg-blue-50 text-blue-600{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+                            {% if _current == 'Various Services' %}<span class="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>{% else %}<span class="w-1.5 h-1.5 flex-shrink-0"></span>{% endif %}
+                            Various Services
+                        </a>
+                        {% endif %}
+                        {% if user_access.get('settings', 'none') == 'write' %}
+                        {% if user_access.get('retail', 'none') != 'none' or user_access.get('promo', 'none') != 'none' or user_access.get('intuiflow', 'none') != 'none' or user_access.get('signage', 'none') != 'none' or user_access.get('services', 'none') != 'none' %}
+                        <div class="border-t border-gray-100 my-1"></div>
+                        {% endif %}
+                        <a href="{{ url_for('settings.index') }}"
+                           class="flex items-center gap-2 px-4 py-2 text-sm font-medium transition
+                                  {% if _current == 'Settings' %}bg-blue-50 text-blue-600{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+                            {% if _current == 'Settings' %}<span class="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>{% else %}<span class="w-1.5 h-1.5 flex-shrink-0"></span>{% endif %}
+                            Settings
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                </div>
+
+                <!-- Right third: User + logout -->
+                <div class="flex-1 flex items-center justify-end gap-3 text-sm">
                     {% if session.username %}
                         <span class="text-gray-600">
                             Logged in as <span class="font-semibold">{{ session.username }}</span>
@@ -114,5 +130,27 @@
     {% block content %}{% endblock %}
 
     {% block scripts %}{% endblock %}
+
+    <script>
+        function toggleNavDropdown() {
+            var menu = document.getElementById('nav-dropdown-menu');
+            var chevron = document.getElementById('nav-dropdown-chevron');
+            var open = !menu.classList.contains('hidden');
+            if (open) {
+                menu.classList.add('hidden');
+                chevron.style.transform = '';
+            } else {
+                menu.classList.remove('hidden');
+                chevron.style.transform = 'rotate(180deg)';
+            }
+        }
+        document.addEventListener('click', function(e) {
+            var container = document.getElementById('nav-dropdown-container');
+            if (container && !container.contains(e.target)) {
+                document.getElementById('nav-dropdown-menu').classList.add('hidden');
+                document.getElementById('nav-dropdown-chevron').style.transform = '';
+            }
+        });
+    </script>
 </body>
 </html>

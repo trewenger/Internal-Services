@@ -2,15 +2,16 @@ from flask import Blueprint, render_template, request, jsonify, flash, redirect,
 from common.Clients.Email.EmailApi import send_email
 from config import Config
 
-from blueprints.auth import access_required, generate_invite_token
+from blueprints.auth import access_required, login_required, generate_invite_token
 from user_store import UserStore
 
-import requests, json
+import requests, json, os, subprocess, threading
 
 settings_bp = Blueprint('settings', __name__)
 
 SECTIONS = ['retail', 'services', 'intuiflow', 'settings', 'promo', 'signage']
 SENDER_EMAIL = Config.SENDER_EMAIL
+_BAT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'update_and_restart_service.bat')
 
 @settings_bp.route('/')
 @access_required('settings', 'write')
@@ -167,8 +168,33 @@ def reactivate_user(username):
         result = UserStore.reactivate_user(username)
         if not result:
             raise Exception('Failed to reactivate the user. ')
-        
+
         return jsonify({'success': True, 'message': f'{username} successfully reactivated.'})
     except Exception as e:
         return jsonify({'error: ': str(e)}), 500
+
+
+@settings_bp.route('/ping')
+@login_required
+def ping():
+    return jsonify({'ok': True})
+
+
+@settings_bp.route('/restart', methods=['POST'])
+@access_required('settings', 'write')
+def restart():
+    if not os.path.isfile(_BAT_PATH):
+        return jsonify({'error': f'Script not found: {_BAT_PATH}'}), 500
+
+    def _launch():
+        subprocess.Popen(
+            ['cmd', '/c', _BAT_PATH],
+            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+    threading.Timer(2.0, _launch).start()
+    return jsonify({'ok': True})
     

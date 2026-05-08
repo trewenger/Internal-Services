@@ -8,8 +8,53 @@
 
         <!-- Header -->
         <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h1 class="text-3xl font-bold text-gray-800">Settings</h1>
-            <p class="text-gray-600 mt-1">Manage user accounts and access permissions</p>
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Settings</h1>
+                    <p class="text-gray-600 mt-1">Manage user accounts and access permissions</p>
+                </div>
+                <button onclick="openRestartModal()"
+                        class="bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-5 rounded-lg transition text-sm">
+                    Update &amp; Restart Internal Services
+                </button>
+            </div>
+        </div>
+
+        <!-- Restart Confirmation Modal -->
+        <div id="restart-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+            <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+                <h3 class="text-xl font-bold text-gray-800 mb-3">Confirm Update &amp; Restart</h3>
+                <p class="text-sm text-gray-600 mb-2">This will perform the following in order:</p>
+                <ul class="text-sm text-gray-600 list-disc list-inside mb-4 space-y-1">
+                    <li>Stop the Internal Services application via NSSM</li>
+                    <li>Pull the latest changes from GitHub</li>
+                    <li>Restart the application via NSSM</li>
+                </ul>
+                <p class="text-sm font-semibold text-red-600 mb-6">The app will be unavailable for 15–30 seconds. This page will reload automatically when it's back online.</p>
+                <div class="flex justify-end gap-3">
+                    <button onclick="closeRestartModal()"
+                            class="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 transition text-sm font-semibold">
+                        Cancel
+                    </button>
+                    <button onclick="confirmRestart()"
+                            class="px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white font-bold text-sm transition">
+                        Yes, Update &amp; Restart
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Restart Overlay -->
+        <div id="restart-overlay" class="hidden fixed inset-0 bg-gray-900 bg-opacity-80 z-50 flex items-center justify-center">
+            <div class="bg-white rounded-lg p-8 text-center max-w-sm w-full mx-4">
+                <svg class="animate-spin mx-auto mb-4 w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Restarting...</h3>
+                <p class="text-gray-600 text-sm mb-4">The application is updating and restarting. This page will reload automatically when the server is back online.</p>
+                <p id="restart-status" class="text-xs text-gray-400">Waiting for server to go down...</p>
+            </div>
         </div>
 
         <!-- Flash messages -->
@@ -212,6 +257,45 @@
         } catch (e) {
             showNotification('Error reactivating user', 'error');
         }
+    }
+
+    function openRestartModal() {
+        document.getElementById('restart-modal').classList.remove('hidden');
+    }
+
+    function closeRestartModal() {
+        document.getElementById('restart-modal').classList.add('hidden');
+    }
+
+    async function confirmRestart() {
+        closeRestartModal();
+        document.getElementById('restart-overlay').classList.remove('hidden');
+        try {
+            await fetch('/settings/restart', { method: 'POST' });
+        } catch (e) {
+            // Server may drop connection before responding — that's fine
+        }
+        // Wait for the service to go down before polling for it to come back
+        setTimeout(pollUntilOnline, 5000);
+    }
+
+    function pollUntilOnline() {
+        const statusEl = document.getElementById('restart-status');
+        let attempts = 0;
+        const interval = setInterval(async () => {
+            attempts++;
+            statusEl.textContent = `Checking if server is back... (attempt ${attempts})`;
+            try {
+                const resp = await fetch('/settings/ping', { cache: 'no-store' });
+                if (resp.ok) {
+                    clearInterval(interval);
+                    statusEl.textContent = 'Server is back online. Reloading...';
+                    setTimeout(() => location.reload(), 800);
+                }
+            } catch (e) {
+                // Still down — keep polling
+            }
+        }, 2000);
     }
 </script>
 {% endblock %}
