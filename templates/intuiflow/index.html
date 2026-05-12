@@ -73,7 +73,7 @@
 </div>
 {% endmacro %}
 
-{% macro notifications_tab(name, cfg, has_short_inv) %}
+{% macro notifications_tab(name, cfg, has_short_inv, has_def_loc) %}
 <div id="tab-panel-{{ name }}-notifications" class="hidden p-4">
     <div class="space-y-6">
 
@@ -167,6 +167,59 @@
                            onkeydown="if(event.key==='Enter'){event.preventDefault();addShortInvRecipient('{{ name }}');}"
                            class="border rounded py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64">
                     <button onclick="addShortInvRecipient('{{ name }}')"
+                            class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold py-1.5 px-3 rounded transition">
+                        + Add
+                    </button>
+                </div>
+            </div>
+
+        </div>
+        {% endif %}
+
+        {% if has_def_loc %}
+        <!-- Invalid Default Location Notifications -->
+        <div class="space-y-5 border-t pt-5">
+            <h3 class="text-sm font-bold text-gray-700 uppercase tracking-wider text-center">Invalid Default Location Notifications</h3>
+            <p class="text-xs text-gray-500">Sent separately when work orders are closed with parts having invalid default locations.</p>
+
+            <!-- Def Loc toggle -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Invalid Default Locations Alert</label>
+                <div class="flex items-center gap-6">
+                    <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input type="radio" name="def-loc-enabled-{{ name }}" value="off"
+                               {{ 'checked' if not cfg.def_locations_notify_enabled }}
+                               class="accent-blue-500">
+                        Off
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input type="radio" name="def-loc-enabled-{{ name }}" value="on"
+                               {{ 'checked' if cfg.def_locations_notify_enabled }}
+                               class="accent-blue-500">
+                        On
+                    </label>
+                </div>
+            </div>
+
+            <!-- Short inv recipients -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Invalid Default Location Recipients</label>
+                <div id="def-loc-chips-{{ name }}" class="flex flex-wrap gap-2 mb-2">
+                    {% for email in cfg.def_locations_notify_recipients %}
+                    <span data-email="{{ email }}"
+                          class="inline-flex items-center gap-1 bg-purple-100 text-purple-800 text-xs font-semibold px-3 py-1 rounded-full">
+                        {{ email }}
+                        <button type="button" onclick="removeDefLocationRecipient(this)"
+                                class="ml-1 text-purple-500 hover:text-red-500 font-bold leading-none">×</button>
+                    </span>
+                    {% endfor %}
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="email" id="def-loc-input-{{ name }}"
+                           placeholder="email@example.com"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();addDefLocationRecipient('{{ name }}');}"
+                           class="border rounded py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64">
+                    <button onclick="addDefLocationRecipient('{{ name }}')"
                             class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold py-1.5 px-3 rounded transition">
                         + Add
                     </button>
@@ -310,6 +363,7 @@
 
 {% macro card(name, cfg, is_pipeline) %}
 {% set has_short_inv = name in ['full-sync', 'partial-sync', 'close-work-orders'] %}
+{% set has_def_loc = name in ['full-sync', 'partial-sync', 'close-work-orders'] %}
 <div class="bg-white rounded-lg shadow-md" id="card-{{ name }}">
 
     <!-- ===== Collapsed Header ===== -->
@@ -377,7 +431,7 @@
         </div>
 
         {% if is_pipeline %}{{ schedule_tab(name, cfg) }}{% endif %}
-        {{ notifications_tab(name, cfg, has_short_inv) }}
+        {{ notifications_tab(name, cfg, has_short_inv, has_def_loc) }}
         {{ logs_tab(name) }}
 
     </div><!-- end card-body -->

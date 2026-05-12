@@ -242,6 +242,70 @@ def _maybe_notify_short_inventory(cfg:dict, short_inventory:dict) -> None:
     except Exception as e:
         logger.error(f'Short inventory notification email failed for {label}: {e}')
 
+def _maybe_notify_def_locations(cfg:dict, def_locations:dict):
+    if not def_locations:
+        return
+    if not cfg.get('def_locations_notify_enabled'):
+        return
+    recipients = cfg.get('def_locations_notify_recipients', [])
+    if not recipients:
+        return
+    
+    status_word  = 'Error'
+    status_color = '#ffffff'
+    status_bg    = "#FE2003"
+
+    status_pill = (
+        # Outlook Desktop: VML rounded rectangle (only way to get true pill shape in Word engine)
+        f'<!--[if mso]>'
+        f'<table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;">'
+        f'<tr><td>'
+        f'<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" '
+        f'arcsize="50%" fillcolor="{status_bg}" strokecolor="{status_bg}" '
+        f'style="height:32px;v-text-anchor:middle;width:120px;">'
+        f'<w:anchorlock/>'
+        f'<p style="margin:0;text-align:center;color:{status_color};font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;font-size:13px;font-weight:700;mso-margin-top-alt:0;mso-margin-bottom-alt:0;">{status_word}</p>'
+        f'</v:roundrect>'
+        f'</td></tr></table>'
+        f'<![endif]-->'
+        # Web clients: standard table with border-radius
+        f'<!--[if !mso]><!-->'
+        f'<table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;mso-table-lspace:0pt;mso-table-rspace:0pt;">'
+        f'<tr><td style="background:{status_bg};padding:5px 16px;border-radius:9999px;">'
+        f'<span style="color:{status_color};font-weight:700;font-size:12px;font-family:\'Helvetica Neue\',Helvetica,Arial,sans-serif;">{status_word}</span>'
+        f'</td></tr></table>'
+        f'<!--<![endif]-->'
+    )
+
+    label    = cfg.get('label', 'Intuiflow')
+    subtitle = (f'The following work orders were not closed due to missing/invalid default locations '
+                f'on their parts during the sync at {datetime.now().strftime("%Y-%m-%d %H:%M")}:')
+
+    vals = ''
+    for mo_num, messages in def_locations.items():
+        msg_list = ''.join(
+            f'<li style="margin:2px 0;color:#9ca3af;">{m}</li>' for m in messages
+        )
+        vals += (
+            f'<li style="margin-bottom:12px;color:#ffffff;">'
+            f'<span style="font-weight:700;color:#ffffff;">Work Order: <b>{mo_num}</b></span>'
+            f'<ul style="margin:4px 0 0 0;padding-left:18px;list-style:disc;">{msg_list}</ul>'
+            f'</li>'
+        )
+
+    body_html = (status_pill + 
+                 f'<ol style="margin:0;padding-left:20px;font-size:13px;line-height:1.6;color:#ffffff;">{vals}</ol>')
+
+    try:
+        send_email(
+            subject=f'Invalid Default Location Alert - Failed to Close Order(s)',
+            html_body=_email_wrap('Default Location Alert', subtitle, body_html),
+            recipients=recipients,
+            sender=Config.SENDER_EMAIL,
+        )
+    except Exception as e:
+        logger.error(f'Invalid default location notification email failed for {label}: {e}')
+
 # ============================================================================
 # Runner functions
 # Called directly by APScheduler and by /run/<name> routes (via a thread).
@@ -251,10 +315,11 @@ def run_full_sync(triggered_by:str='scheduler') -> None:
     _pipeline_lock.acquire()  # blocking — waits if partial-sync is running
     try:
         intuiflow_config.set_running('full-sync', True)
-        cfg             = intuiflow_config.get('full-sync')
-        short_inventory = {}
-        combined_log    = {}
-        all_success     = True
+        cfg               = intuiflow_config.get('full-sync')
+        short_inventory   = {}
+        default_locations = {}
+        combined_log      = {}
+        all_success       = True
 
         try:
             log_obj = ImportPendingOrders().auto_run()
@@ -281,9 +346,10 @@ def run_full_sync(triggered_by:str='scheduler') -> None:
             logger.error(f'full-sync: update-work-orders failed: {e}')
 
         try:
-            module          = CloseWorkOrders()
-            log_obj         = module.auto_run()
-            short_inventory = module.short_inventory or {}
+            module            = CloseWorkOrders()
+            log_obj           = module.auto_run()
+            short_inventory   = module.short_inventory or {}
+            default_locations = module.default_location or {}
             if log_obj.error_flag() != 0:
                 combined_log["Close Fishbowl WOs (ISSUES)"] = log_obj.get_log()
                 all_success = False
@@ -310,6 +376,7 @@ def run_full_sync(triggered_by:str='scheduler') -> None:
         intuiflow_log.append_run('full-sync', 'success' if all_success else 'error', triggered_by, combined_log)
         _maybe_notify(cfg, all_success, combined_log)
         _maybe_notify_short_inventory(cfg, short_inventory)
+        _maybe_notify_def_locations(cfg, default_locations)
     finally:
         _pipeline_lock.release()
 
@@ -317,10 +384,11 @@ def run_partial_sync(triggered_by:str='scheduler') -> None:
     _pipeline_lock.acquire()  # blocking — waits if full-sync is running
     try:
         intuiflow_config.set_running('partial-sync', True)
-        cfg             = intuiflow_config.get('partial-sync')
-        short_inventory = {}
-        combined_log    = {}
-        all_success     = True
+        cfg               = intuiflow_config.get('partial-sync')
+        short_inventory   = {}
+        default_locations = {}
+        combined_log      = {}
+        all_success       = True
 
         try:
             log_obj = UpdateWorkOrders().auto_run()
@@ -335,9 +403,10 @@ def run_partial_sync(triggered_by:str='scheduler') -> None:
             logger.error(f'partial-sync: update-work-orders failed: {e}')
 
         try:
-            module          = CloseWorkOrders()
-            log_obj         = module.auto_run()
-            short_inventory = module.short_inventory or {}
+            module            = CloseWorkOrders()
+            log_obj           = module.auto_run()
+            short_inventory   = module.short_inventory or {}
+            default_locations = module.default_location or {}
             if log_obj.error_flag() != 0:
                 combined_log["Close Fishbowl WOs (ISSUES)"] = log_obj.get_log()
                 all_success = False
@@ -352,6 +421,7 @@ def run_partial_sync(triggered_by:str='scheduler') -> None:
         intuiflow_log.append_run('partial-sync', 'success' if all_success else 'error', triggered_by, combined_log)
         _maybe_notify(cfg, all_success, combined_log)
         _maybe_notify_short_inventory(cfg, short_inventory)
+        _maybe_notify_def_locations(cfg, default_locations)
     finally:
         _pipeline_lock.release()
 
@@ -616,12 +686,18 @@ def update_config(name):
         if 'notify_recipients' in req_data:
             updates['notify_recipients'] = list(req_data['notify_recipients'])
 
-        # --- Short inventory notification fields (pipelines + close-work-orders) ---
+        # --- Additional notification fields (pipelines + close-work-orders) ---
         if name in _PIPELINE_NAMES or name == 'close-work-orders':
+            # --- Short inventory notification fields
             if 'short_inv_notify_enabled' in req_data:
                 updates['short_inv_notify_enabled'] = bool(req_data['short_inv_notify_enabled'])
             if 'short_inv_notify_recipients' in req_data:
                 updates['short_inv_notify_recipients'] = list(req_data['short_inv_notify_recipients'])
+            # --- Invalid default location notification fields
+            if 'def_loc_notify_enabled' in req_data:
+                updates['def_locations_notify_enabled'] = bool(req_data['def_loc_notify_enabled'])
+            if 'def_loc_notify_recipients' in req_data:
+                updates['def_locations_notify_recipients'] = list(req_data['def_loc_notify_recipients'])
 
         updated = intuiflow_config.update(name, updates)
 

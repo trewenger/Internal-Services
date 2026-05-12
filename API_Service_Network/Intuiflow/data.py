@@ -9,17 +9,19 @@ from datetime import datetime
 _DIR = os.path.dirname(os.path.abspath(__file__))
 
 _DEFAULT_PIPELINE_CONFIG = {
-    'schedule_type':               'interval',
-    'schedule_interval_minutes':   1440,
-    'schedule_cron':               None,
-    'enabled':                     False,
-    'running':                     False,
-    'last_run':                    None,
-    'last_status':                 None,
-    'notify_mode':                 'none',
-    'notify_recipients':           [],
-    'short_inv_notify_enabled':    False,
-    'short_inv_notify_recipients': [],
+    'schedule_type':                        'interval',
+    'schedule_interval_minutes':            1440,
+    'schedule_cron':                        None,
+    'enabled':                              False,
+    'running':                              False,
+    'last_run':                             None,
+    'last_status':                          None,
+    'notify_mode':                          'none',
+    'notify_recipients':                    [],
+    'short_inv_notify_enabled':             False,
+    'short_inv_notify_recipients':          [],
+    'def_locations_notify_enabled':         False,
+    'def_locations_notify_recipients':      [],
 }
 
 _DEFAULT_MODULE_CONFIG = {
@@ -31,13 +33,15 @@ _DEFAULT_MODULE_CONFIG = {
 }
 
 _DEFAULT_MODULE_CONFIG_SHORT_INV = {
-    'running':           False,
-    'last_run':          None,
-    'last_status':       None,
-    'notify_mode':       'none',
-    'notify_recipients': [],
-    'short_inv_notify_enabled':    False,
-    'short_inv_notify_recipients': [],
+    'running':                              False,
+    'last_run':                             None,
+    'last_status':                          None,
+    'notify_mode':                          'none',
+    'notify_recipients':                    [],
+    'short_inv_notify_enabled':             False,
+    'short_inv_notify_recipients':          [],
+    'def_locations_notify_enabled':         False,
+    'def_locations_notify_recipients':      [],
 }
 
 _DEFAULT_CONFIG = {

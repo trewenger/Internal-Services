@@ -123,8 +123,9 @@ class CloseWorkOrders:
         # shared data
         self._scheduler_closed_orders = []  # fake closures — just unissue + delete
         self._completed_orders        = []  # real closures — full cycle + delete process
-        # short inventory issues exposed for orchestrator — {MoNum: [messages]}
+        # short inventory and default location issues exposed for orchestrator — {MoNum: [messages]}
         self.short_inventory: dict[str, list] = {}
+        self.default_location: dict[str, list] = {}
 
     def _get_intuiflow_closed_orders(self) -> None:
         ''' Fetches closed rope items from Intuiflow, filters to completion operations,
@@ -298,9 +299,10 @@ class CloseWorkOrders:
                 no_location = False
                 for row in locations:
                     if not row.get("DefaultLocation"):
-                        self.log.log("Check Default Locations",
-                                     f"Warning: Part {row.get('PartNum')} on order {mo_num} has no default location. "
-                                     f"Order will be skipped for closure.", True)
+                        msg = (f"Warning: Part {row.get('PartNum')} on order {mo_num} has no default location. "
+                               f"Order will be skipped for closure.")
+                        self.log.log("Check Default Locations", msg)
+                        self.default_location.setdefault(mo_num, []).append(msg)
                         no_location = True
 
                 if not no_location:

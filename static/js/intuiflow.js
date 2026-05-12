@@ -366,6 +366,20 @@ function saveNotifications(name) {
         payload.short_inv_notify_recipients = shortInvRecipients;
     }
 
+    // Include def location fields if this card has them
+    const defLocRadio = document.querySelector(`input[name="def-loc-enabled-${name}"]:checked`);
+    if (defLocRadio) {
+        const defLocEnabled    = defLocRadio.value === 'on';
+        const defLocChips      = document.querySelectorAll(`#def-loc-chips-${name} [data-email]`);
+        const defLocRecipients = Array.from(defLocChips).map(c => c.dataset.email);
+        if (defLocEnabled && defLocRecipients.length === 0) {
+            showNotification('Add at least one invalid default location recipient before enabling default location alerts', 'error');
+            return;
+        }
+        payload.def_loc_notify_enabled    = defLocEnabled;
+        payload.def_loc_notify_recipients = defLocRecipients;
+    }
+
     _putConfig(name, payload, (result) => {
         showNotification(`${result.config.label}: notification settings saved`, 'success');
         if (window.INTUIFLOW_CONFIG[name]) Object.assign(window.INTUIFLOW_CONFIG[name], result.config);
@@ -392,8 +406,29 @@ function removeRecipient(btn) {
     btn.closest('[data-email]').remove();
 }
 
-// --------------------------------- Short inv notifications -------------------------- //
+// ------------------------------- Def. Location notifications ------------------------ //
 
+function addDefLocationRecipient(name) {
+    const input = document.getElementById(`def-loc-input-${name}`);
+    const email = input.value.trim();
+    if (!email || !email.includes('@')) { showNotification('Enter a valid email address', 'error'); return; }
+
+    const existing = Array.from(document.querySelectorAll(`#def-loc-chips-${name} [data-email]`)).map(c => c.dataset.email);
+    if (existing.includes(email)) { showNotification('That email is already in the list', 'error'); return; }
+
+    const chip = document.createElement('span');
+    chip.dataset.email = email;
+    chip.className = 'inline-flex items-center gap-1 bg-purple-100 text-purple-800 text-xs font-semibold px-3 py-1 rounded-full';
+    chip.innerHTML = `${escHtml(email)} <button type="button" onclick="removeDefLocationRecipient(this)" class="ml-1 text-purple-500 hover:text-red-500 font-bold leading-none">×</button>`;
+    document.getElementById(`def-loc-chips-${name}`).appendChild(chip);
+    input.value = '';
+}
+
+function removeDefLocationRecipient(btn) {
+    btn.closest('[data-email]').remove();
+}
+
+// --------------------------------- Short inv notifications -------------------------- //
 
 function addShortInvRecipient(name) {
     const input = document.getElementById(`short-inv-input-${name}`);
