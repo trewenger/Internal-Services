@@ -468,12 +468,12 @@ function _putConfig(name, payload, onSuccess) {
 
 function formatDatetime(iso) {
     if (!iso) return '—';
-    const d = new Date(iso);
+    const d = new Date(iso.replace(/(\.\d{3})\d+/, '$1'));
     if (isNaN(d)) return iso.substring(0, 19).replace('T', ' ');
     return new Intl.DateTimeFormat('en-CA', {
         timeZone: 'America/Los_Angeles',
         year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: 'numeric', minute: '2-digit',
+        hour: 'numeric', minute: '2-digit', second: '2-digit',
         hour12: true,
     }).format(d).replace(',', '');
 }
