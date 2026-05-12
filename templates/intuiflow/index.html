@@ -19,6 +19,10 @@
             <span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">Running...</span>
         {% elif cfg.last_status == 'success' %}
             <span class="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">Last run: Success</span>
+        {% elif cfg.last_status == 'short-inventory' %}
+            <span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">Last run: Warning - Short inventory alert</span>
+        {% elif cfg.last_status == 'default-location' %}
+            <span class="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full">Last run: Warning - Invalid default location alert</span>
         {% elif cfg.last_status == 'error' %}
             <span class="bg-red-100 text-red-800 text-xs font-bold px-3 py-1 rounded-full">Last run: Error</span>
         {% else %}

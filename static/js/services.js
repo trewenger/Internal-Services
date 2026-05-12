@@ -421,7 +421,18 @@ function _putConfig(name, payload, onSuccess) {
 
 function formatDatetime(iso) {
     if (!iso) return '—';
-    const d = new Date(iso.replace(/(\.\d{3})\d+/, '$1'));
+    // Naive datetime strings from the server have no timezone indicator — parse components directly
+    if (!/Z$/.test(iso) && !/[+-]\d{2}:?\d{2}$/.test(iso)) {
+        const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+        if (!m) return iso;
+        let h = +m[4];
+        const ampm = h >= 12 ? 'p.m.' : 'a.m.';
+        if (h > 12) h -= 12;
+        if (h === 0) h = 12;
+        return `${m[1]}-${m[2]}-${m[3]} ${h}:${m[5]}:${m[6]} ${ampm}`;
+    }
+    const normalized = iso.replace(/(\.\d{3})\d+/, '$1');
+    const d = new Date(normalized);
     if (isNaN(d)) return iso.substring(0, 19).replace('T', ' ');
     return new Intl.DateTimeFormat('en-CA', {
         timeZone: 'America/Los_Angeles',
@@ -430,6 +441,13 @@ function formatDatetime(iso) {
         hour12: true,
     }).format(d).replace(',', '');
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    for (const [name, cfg] of Object.entries(window.SERVICES_CONFIG || {})) {
+        const el = document.getElementById(`last-run-${name}`);
+        if (el && cfg.last_run) el.textContent = formatDatetime(cfg.last_run);
+    }
+});
 
 function escHtml(str) {
     return str

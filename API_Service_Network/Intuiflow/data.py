@@ -143,12 +143,12 @@ class IntuiflowConfig:
         data[name]['running'] = running
         self._write(data)
 
-    def save_result(self, name:str, success:bool) -> None:
+    def save_result(self, name:str, status:str) -> None:
         """Persist the outcome of a completed run."""
         data = self._read()
         data[name]['running']     = False
         data[name]['last_run']    = datetime.now().isoformat()
-        data[name]['last_status'] = 'success' if success else 'error'
+        data[name]['last_status'] = status
         self._write(data)
 
     def update(self, name:str, fields:dict) -> dict:
@@ -224,7 +224,7 @@ class IntuiflowLog:
             'log_data':     log_data,
         }
 
-        if status == 'success':
+        if status == 'success' or status == "default-location" or status == "short-inventory":
             entry_data['logs'].insert(0, entry)
             entry_data['logs'] = entry_data['logs'][:10]
             entry_data['log_stats']['total_runs'] = run_id

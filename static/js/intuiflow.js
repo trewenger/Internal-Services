@@ -106,12 +106,13 @@ function pollStatus(name, attempts = 0) {
             if (!cfg.running) {
                 updateEntryUI(name, cfg);
                 _logsLoaded[name] = false;
-                const label = cfg.label || name;
+                const label     = cfg.label || name;
+                const isWarning = cfg.last_status === 'short-inventory' || cfg.last_status === 'default-location';
                 showNotification(
-                    cfg.last_status === 'success'
-                        ? `${label} completed successfully`
-                        : `${label} finished with errors`,
-                    cfg.last_status === 'success' ? 'success' : 'error'
+                    cfg.last_status === 'success' ? `${label} completed successfully`
+                    : isWarning                   ? `${label} completed with warnings`
+                                                  : `${label} finished with errors`,
+                    cfg.last_status === 'success' ? 'success' : isWarning ? 'info' : 'error'
                 );
             } else {
                 pollStatus(name, attempts + 1);
@@ -142,11 +143,19 @@ function updateStatusBadge(name, status) {
     const el = document.getElementById(`status-badge-${name}`);
     if (!el) return;
     const badges = {
-        running: 'bg-yellow-100 text-yellow-800',
-        success: 'bg-green-100 text-green-800',
-        error:   'bg-red-100 text-red-800',
+        running:            'bg-yellow-100 text-yellow-800',
+        success:            'bg-green-100 text-green-800',
+        error:              'bg-red-100 text-red-800',
+        'short-inventory':  'bg-yellow-100 text-yellow-800',
+        'default-location': 'bg-yellow-100 text-yellow-800',
     };
-    const labels = { running: 'Running...', success: 'Last run: Success', error: 'Last run: Error' };
+    const labels = {
+        running:            'Running...',
+        success:            'Last run: Success',
+        error:              'Last run: Error',
+        'short-inventory':  'Last run: Warning - short inventory alert',
+        'default-location': 'Last run: Warning - invalid default location alert',
+    };
     const cls  = badges[status] || 'bg-gray-100 text-gray-600';
     const text = labels[status] || 'Never run';
     el.innerHTML = `<span class="${cls} text-xs font-bold px-3 py-1 rounded-full">${text}</span>`;
@@ -256,7 +265,14 @@ function renderLogTab(name, tab) {
     }
 
     contentEl.innerHTML = entries.map(e => {
-        const statusCls  = e.status === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+        let statusCls  = undefined
+        if (e.status === 'success') {
+            statusCls = 'bg-green-100 text-green-800'
+        }else if (e.status === 'short-inventory' || e.status === 'default-location') {
+            statusCls = 'bg-yellow-100 text-yellow-800'
+        } else {
+            statusCls = 'bg-red-100 text-red-800';
+        }
         const triggerCls = e.triggered_by === 'manual' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700';
 
         let logRows = '';
@@ -468,7 +484,18 @@ function _putConfig(name, payload, onSuccess) {
 
 function formatDatetime(iso) {
     if (!iso) return '—';
-    const d = new Date(iso.replace(/(\.\d{3})\d+/, '$1'));
+    // Naive datetime strings from the server have no timezone indicator — parse components directly
+    if (!/Z$/.test(iso) && !/[+-]\d{2}:?\d{2}$/.test(iso)) {
+        const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+        if (!m) return iso;
+        let h = +m[4];
+        const ampm = h >= 12 ? 'p.m.' : 'a.m.';
+        if (h > 12) h -= 12;
+        if (h === 0) h = 12;
+        return `${m[1]}-${m[2]}-${m[3]} ${h}:${m[5]}:${m[6]} ${ampm}`;
+    }
+    const normalized = iso.replace(/(\.\d{3})\d+/, '$1');
+    const d = new Date(normalized);
     if (isNaN(d)) return iso.substring(0, 19).replace('T', ' ');
     return new Intl.DateTimeFormat('en-CA', {
         timeZone: 'America/Los_Angeles',
@@ -477,6 +504,13 @@ function formatDatetime(iso) {
         hour12: true,
     }).format(d).replace(',', '');
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    for (const [name, cfg] of Object.entries(window.INTUIFLOW_CONFIG || {})) {
+        const el = document.getElementById(`last-run-${name}`);
+        if (el && cfg.last_run) el.textContent = formatDatetime(cfg.last_run);
+    }
+});
 
 function escHtml(str) {
     return str

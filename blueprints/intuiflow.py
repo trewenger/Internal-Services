@@ -372,8 +372,28 @@ def run_full_sync(triggered_by:str='scheduler') -> None:
             combined_log['upload-fb-files: fatal'] = [str(e)]
             logger.error(f'full-sync: upload-fb-files failed: {e}')
 
-        intuiflow_config.save_result('full-sync', all_success)
-        intuiflow_log.append_run('full-sync', 'success' if all_success else 'error', triggered_by, combined_log)
+        # Safety net: if orders were silently skipped (short inv or bad default location)
+        # and the dedicated alert for that type is OFF, flip all_success so the main run
+        # email fires as an error — ensuring the issue is never completely invisible.
+        # was_success captures the true run outcome before the flip so the badge block
+        # below can still identify the specific skip type regardless.
+        was_success = all_success
+        if all_success and short_inventory and not cfg.get('short_inv_notify_enabled'):
+            all_success = False  # no dedicated email → escalate to main run email
+        if all_success and default_locations and not cfg.get('def_locations_notify_enabled'):
+            all_success = False  # no dedicated email → escalate to main run email
+
+        # Badge/log status: use granular values when the run was clean (was_success) but
+        # orders were skipped. Evaluated against was_success so that a safety-net flip
+        # above still shows 'short-inventory'/'default-location' instead of plain 'error'.
+        result = 'success' if all_success else 'error'
+        if was_success and short_inventory:
+            result = 'short-inventory'
+        if was_success and default_locations:
+            result = 'default-location'
+
+        intuiflow_config.save_result('full-sync', result)
+        intuiflow_log.append_run('full-sync', result, triggered_by, combined_log)
         _maybe_notify(cfg, all_success, combined_log)
         _maybe_notify_short_inventory(cfg, short_inventory)
         _maybe_notify_def_locations(cfg, default_locations)
@@ -417,8 +437,28 @@ def run_partial_sync(triggered_by:str='scheduler') -> None:
             combined_log['close-work-orders: fatal'] = [str(e)]
             logger.error(f'partial-sync: close-work-orders failed: {e}')
 
-        intuiflow_config.save_result('partial-sync', all_success)
-        intuiflow_log.append_run('partial-sync', 'success' if all_success else 'error', triggered_by, combined_log)
+        # Safety net: if orders were silently skipped (short inv or bad default location)
+        # and the dedicated alert for that type is OFF, flip all_success so the main run
+        # email fires as an error — ensuring the issue is never completely invisible.
+        # was_success captures the true run outcome before the flip so the badge block
+        # below can still identify the specific skip type regardless.
+        was_success = all_success
+        if all_success and short_inventory and not cfg.get('short_inv_notify_enabled'):
+            all_success = False  # no dedicated email → escalate to main run email
+        if all_success and default_locations and not cfg.get('def_locations_notify_enabled'):
+            all_success = False  # no dedicated email → escalate to main run email
+
+        # Badge/log status: use granular values when the run was clean (was_success) but
+        # orders were skipped. Evaluated against was_success so that a safety-net flip
+        # above still shows 'short-inventory'/'default-location' instead of plain 'error'.
+        result = 'success' if all_success else 'error'
+        if was_success and short_inventory:
+            result = 'short-inventory'
+        if was_success and default_locations:
+            result = 'default-location'
+
+        intuiflow_config.save_result('partial-sync', result)
+        intuiflow_log.append_run('partial-sync', result, triggered_by, combined_log)
         _maybe_notify(cfg, all_success, combined_log)
         _maybe_notify_short_inventory(cfg, short_inventory)
         _maybe_notify_def_locations(cfg, default_locations)
@@ -439,8 +479,10 @@ def run_upload_fb_files(triggered_by:str='manual') -> None:
         except Exception as e:
             is_success, log_data = False, {'error': [str(e)]}
             logger.error(f'upload-fb-files failed: {e}')
-        intuiflow_config.save_result('upload-fb-files', is_success)
-        intuiflow_log.append_run('upload-fb-files', 'success' if is_success else 'error', triggered_by, log_data)
+
+        result = 'success' if is_success else 'error'
+        intuiflow_config.save_result('upload-fb-files', result)
+        intuiflow_log.append_run('upload-fb-files', result, triggered_by, log_data)
         _maybe_notify(cfg, is_success, log_data)
     finally:
         _pipeline_lock.release()
@@ -459,8 +501,10 @@ def run_update_work_orders(triggered_by:str='manual') -> None:
         except Exception as e:
             is_success, log_data = False, {'error': [str(e)]}
             logger.error(f'update-work-orders failed: {e}')
-        intuiflow_config.save_result('update-work-orders', is_success)
-        intuiflow_log.append_run('update-work-orders', 'success' if is_success else 'error', triggered_by, log_data)
+
+        result = 'success' if is_success else 'error'
+        intuiflow_config.save_result('update-work-orders', result)
+        intuiflow_log.append_run('update-work-orders', result, triggered_by, log_data)
         _maybe_notify(cfg, is_success, log_data)
     finally:
         _pipeline_lock.release()
@@ -473,19 +517,41 @@ def run_close_work_orders(triggered_by:str='manual') -> None:
         intuiflow_config.set_running('close-work-orders', True)
         cfg             = intuiflow_config.get('close-work-orders')
         short_inventory = {}
+        default_locations = {}
+        is_success = True
         try:
             module          = CloseWorkOrders()
             log_obj         = module.auto_run()
             short_inventory = module.short_inventory or {}
+            default_locations = module.default_location or {}
             is_success      = log_obj.error_flag() == 0
             log_data        = {"Close Fishbowl WOs": log_obj.get_log()}
+            # Safety net: flip is_success if orders were skipped and the dedicated alert
+            # for that type is OFF, so the main run email fires as an error instead of
+            # silently passing. was_success preserves the true outcome for the badge block.
+            was_success = is_success
+            if is_success and short_inventory and not cfg.get('short_inv_notify_enabled'):
+                is_success = False  # no dedicated email → escalate to main run email
+            if is_success and default_locations and not cfg.get('def_locations_notify_enabled'):
+                is_success = False  # no dedicated email → escalate to main run email
+            # Badge/log status: granular value when run was clean but orders were skipped.
+            # Uses was_success so a safety-net flip still shows the specific type, not 'error'.
+            result = 'success' if is_success else 'error'
+            if was_success and short_inventory:
+                result = 'short-inventory'
+            if was_success and default_locations:
+                result = 'default-location'
         except Exception as e:
+            result = 'error'
             is_success, log_data = False, {'error': [str(e)]}
             logger.error(f'close-work-orders failed: {e}')
-        intuiflow_config.save_result('close-work-orders', is_success)
-        intuiflow_log.append_run('close-work-orders', 'success' if is_success else 'error', triggered_by, log_data)
+
+        intuiflow_config.save_result('close-work-orders', result)
+        intuiflow_log.append_run('close-work-orders', result, triggered_by, log_data)
+
         _maybe_notify(cfg, is_success, log_data)
         _maybe_notify_short_inventory(cfg, short_inventory)
+        _maybe_notify_def_locations(cfg, default_locations)
     finally:
         _pipeline_lock.release()
 
@@ -503,8 +569,10 @@ def run_import_pending_orders(triggered_by:str='manual') -> None:
         except Exception as e:
             is_success, log_data = False, {'error': [str(e)]}
             logger.error(f'import-pending-orders failed: {e}')
-        intuiflow_config.save_result('import-pending-orders', is_success)
-        intuiflow_log.append_run('import-pending-orders', 'success' if is_success else 'error', triggered_by, log_data)
+
+        result = 'success' if is_success else 'error'
+        intuiflow_config.save_result('import-pending-orders', result)
+        intuiflow_log.append_run('import-pending-orders', result, triggered_by, log_data)
         _maybe_notify(cfg, is_success, log_data)
     finally:
         _pipeline_lock.release()

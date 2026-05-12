@@ -33,7 +33,8 @@
                 <a href="#scheduling" class="hover:underline">5. Scheduling</a>
                 <a href="#notifications" class="hover:underline">6. Notifications</a>
                 <a href="#short-inventory" class="hover:underline">7. Short Inventory Alerts</a>
-                <a href="#logs" class="hover:underline">8. Logs &amp; Run History</a>
+                <a href="#default-location" class="hover:underline">8. Invalid Default Location Alerts</a>
+                <a href="#logs" class="hover:underline">9. Logs &amp; Run History</a>
             </div>
         </div>
 
@@ -54,6 +55,7 @@
                     <li>Four individual modules that can be run on demand at any time</li>
                     <li>Per-pipeline and per-module email notifications</li>
                     <li>Short inventory alerts when a work order cannot be closed due to missing parts</li>
+                    <li>Invalid default location alerts when a work order is skipped due to a part with no default location set</li>
                     <li>Full run history and error logs per pipeline and module</li>
                 </ul>
             </div>
@@ -316,9 +318,50 @@
             </div>
         </div>
 
-        <!-- 8. Logs & Run History -->
+        <!-- 8. Invalid Default Location Alerts -->
+        <div id="default-location" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">8. Invalid Default Location Alerts</h2>
+            <p class="text-gray-700 mb-4">
+                When the Close Work Orders step runs — either as part of a pipeline or on its own — it
+                checks whether each part on every work order has a valid default location set in Fishbowl.
+                If a part is missing a default location, the order cannot be closed and it is skipped.
+                An optional alert email can be sent listing each affected work order and the specific part(s)
+                that need a default location assigned.
+            </p>
+
+            <div class="bg-gray-50 border rounded p-4 mb-4">
+                <h3 class="font-semibold text-gray-800 mb-2">How to enable invalid default location alerts:</h3>
+                <div class="space-y-2">
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+                        <p class="text-gray-700">Open the Full Sync or Partial Sync card and go to the <span class="font-semibold">Notifications</span> tab.</p>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+                        <p class="text-gray-700">Scroll down to the <span class="font-semibold">Invalid Default Location Notifications</span> section and set <span class="font-semibold">Invalid Default Locations Alert</span> to <span class="font-semibold">On</span>.</p>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+                        <p class="text-gray-700">Add the email addresses that should receive these alerts in the <span class="font-semibold">Invalid Default Location Recipients</span> field.</p>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">4</span>
+                        <p class="text-gray-700">Click <span class="font-semibold">Save Notifications</span>.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-orange-50 border border-orange-200 rounded p-4">
+                <span class="font-semibold">Important:</span> Invalid default location alerts are configured
+                and sent independently for Full Sync and Partial Sync. Enabling them on one does not enable
+                them on the other — each must be configured separately. The alert email lists each skipped
+                work order and the specific part(s) that need a default location assigned in Fishbowl.
+            </div>
+        </div>
+
+        <!-- 9. Logs & Run History -->
         <div id="logs" class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">8. Logs &amp; Run History</h2>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">9. Logs &amp; Run History</h2>
             <p class="text-gray-700 mb-4">
                 Every pipeline and module keeps its own run history. Click a card to expand it, then click
                 the <span class="font-semibold">Logs</span> tab. Two panels are shown:
