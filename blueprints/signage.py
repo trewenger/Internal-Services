@@ -168,7 +168,6 @@ def api_update_slideshow(name):
 
 
 @signage_bp.route('/api/slideshow/<name>')
-@login_required
 def api_get_slideshow(name):
     slideshows = signage_config.get_all().get('slideshows', {})
     cfg = slideshows.get(name)
@@ -178,7 +177,6 @@ def api_get_slideshow(name):
 
 
 @signage_bp.route('/slideshow/<name>')
-@login_required
 def slideshow_view(name):
     slideshows = signage_config.get_all().get('slideshows', {})
     cfg = slideshows.get(name)
@@ -198,7 +196,6 @@ def api_get_media():
 
 
 @signage_bp.route('/media/file/<path:filename>')
-@access_required('signage')
 def serve_media_file(filename):
     if not media.get_file(filename):
         return jsonify({'error': 'Not found'}), 404
