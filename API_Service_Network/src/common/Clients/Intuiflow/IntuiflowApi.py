@@ -89,7 +89,13 @@ def create_import_item(import_id:int, data:list, item_type:str,
 
     response = requests.post(url=url, headers=headers, data=payload)
     if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
-        raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
+        response_data = None
+        try:
+            response_data = response.json()
+        except Exception:
+            ...
+
+        raise ApiCallFailure(f"The API call failed with status: {response.status_code}. Reason: {response.reason}. Message: {response_data}")
     return {"status":response.status_code, "reason":response.reason, "data":response.json()}
 
 def validate_import(import_id:int, is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
