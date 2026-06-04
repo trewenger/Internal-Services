@@ -203,10 +203,6 @@ class UploadFbFiles:
                          f"Successfully created new Intuiflow import with ID: {import_id}.")
 
             # ---------------------- upload item ------------------
-            self.log.log(f"Upload Standalone: {upload_type} - {file_name}", 
-                         f"importId: {import_id}, fileName: {file_name}, testEnv: {self._is_intuiflow_test}")
-            self.log.log(f"Upload Standalone: {upload_type} - {file_name}", 
-                         f"{file_data['Data']}")
             resp  = create_import_item(import_id, file_data["Data"], file_name,
                                        is_test_environment=self._is_intuiflow_test)
             items = (resp.get("data") or {}).get("Items") or []
