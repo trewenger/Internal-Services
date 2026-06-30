@@ -156,7 +156,9 @@ class CloseWorkOrders:
                 }
 
                 # ignore these order numbers (accidentally closed in Fishbowl and Intuiflow)
-                if str(order.get("MoNum")) == "15850": continue
+                skip_orders = [15850, "15850"]
+                if order.get("MoNum") in skip_orders: 
+                    continue
 
                 # ensure valid data
                 invalid_flag = False
