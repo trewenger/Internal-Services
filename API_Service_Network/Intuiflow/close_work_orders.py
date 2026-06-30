@@ -155,6 +155,9 @@ class CloseWorkOrders:
                     "RealCompletionFlag": item.get("ActualEndOperation_LastBatch"),
                 }
 
+                # ignore these order numbers (accidentally closed in Fishbowl and Intuiflow)
+                if str(order.get("MoNum")) == "15850": continue
+
                 # ensure valid data
                 invalid_flag = False
                 for key, val in order.items():
