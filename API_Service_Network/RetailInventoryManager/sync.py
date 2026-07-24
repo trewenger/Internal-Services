@@ -188,7 +188,7 @@ class FishbowlSync:
     def get_cycle_data(self, override:dict={}, ignored:list=[]) -> list[dict]:
         ''' Calls and combines the two Fishbowl inventory queries: qoh and out_data '''
         try:
-            # Fetch data
+            # Login
             session = FishbowlSession(is_test_db=self.is_test_db, auto_login=True, login_attempts=2, attempt_wait_secs=20)
 
             if not session.is_logged_in():
@@ -260,7 +260,7 @@ class FishbowlSync:
             # handling part and product number seperately in case they are different.
             cycle_in_inv = [i for i in cycle_in_inv 
                             if i['PartNumber'] not in to_remove 
-                            and i['ProductNum'] not in to_remove]
+                            and i.get('ProductNum') not in to_remove]
 
             # add the manual override items back to the import with the correct values
             for part_num in override:
