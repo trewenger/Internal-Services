@@ -32,6 +32,23 @@ class CardData:
                 time.sleep(0.05)
         return {'cards': {}, 'assignments': []}
 
+    @staticmethod
+    def _prune_closed(data: dict, per_card: int = 20) -> None:
+        """Drop oldest closed assignments per card, keeping the most recent `per_card`."""
+        closed_by_card: dict[str, list] = {}
+        for a in data['assignments']:
+            if a['status'] == 'closed':
+                closed_by_card.setdefault(a['card_id'], []).append(a)
+
+        to_remove: set[int] = set()
+        for closed in closed_by_card.values():
+            if len(closed) > per_card:
+                oldest = sorted(closed, key=lambda x: x['id'])[:len(closed) - per_card]
+                to_remove.update(a['id'] for a in oldest)
+
+        if to_remove:
+            data['assignments'] = [a for a in data['assignments'] if a['id'] not in to_remove]
+
     def _write(self, data: dict) -> None:
         tmp = self.filepath + '.tmp'
         with open(tmp, 'w', encoding='utf-8') as f:
@@ -135,18 +152,33 @@ class CardData:
                 'assigned_at':    self._now(),
                 'closed_at':      None,
             })
+            self._prune_closed(data)
             self._write(data)
             return {'ok': True, 'batch_number': next_batch, 'id': next_id}
 
     def set_last_batch(self, assignment_id: int) -> dict:
         with self._lock:
             data = self._read()
-            for a in data['assignments']:
-                if a['id'] == assignment_id:
-                    a['is_last_batch'] = True
-                    self._write(data)
-                    return {'ok': True}
-            return {'ok': False, 'error': 'Assignment not found'}
+            target = next((a for a in data['assignments'] if a['id'] == assignment_id), None)
+            if target is None:
+                return {'ok': False, 'error': 'Assignment not found'}
+
+            new_value = not target['is_last_batch']
+            target['is_last_batch'] = new_value
+
+            cleared_ids: list[int] = []
+            if new_value:
+                # Enforce only one last-batch card per order
+                for a in data['assignments']:
+                    if (a['id'] != assignment_id
+                            and a['order_number'] == target['order_number']
+                            and a['status'] == 'active'
+                            and a['is_last_batch']):
+                        a['is_last_batch'] = False
+                        cleared_ids.append(a['id'])
+
+            self._write(data)
+            return {'ok': True, 'new_value': new_value, 'cleared_ids': cleared_ids}
 
     def close_work_order(self, order_number: str) -> dict:
         with self._lock:
@@ -158,6 +190,7 @@ class CardData:
                     a['status']    = 'closed'
                     a['closed_at'] = now
                     count += 1
+            self._prune_closed(data)
             self._write(data)
             return {'ok': True, 'closed_count': count}
 
