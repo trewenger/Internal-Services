@@ -1,4 +1,5 @@
 import re
+from urllib.parse import urlparse
 
 from flask import Blueprint, jsonify, redirect, render_template, request, session
 
@@ -31,7 +32,11 @@ def resolve(card_id):
     if not url:
         return render_template('routing_cards/card_status.html',
                                status='unassigned', card_id=card_id)
-    return redirect(url, 302)
+
+    # Use the configured base URL regardless of what host was in the pasted URL,
+    # so cards assigned via an internal proxy still redirect to the correct external address.
+    query = urlparse(url).query
+    return redirect(f"{Config.INTUIFLOW_WORKORDER_BASE_URL.rstrip('/')}?{query}", 302)
 
 
 # ============================================================================
