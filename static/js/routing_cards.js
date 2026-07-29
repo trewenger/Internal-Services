@@ -278,17 +278,23 @@ async function _assignCard(cardId, force = false) {
 }
 
 async function toggleLastBatch(assignmentId) {
-    const card = _scannedCards.find(c => c.id === assignmentId);
-    if (!card) return;
-
     try {
         const resp = await fetch(`/routing-cards/api/assign/${assignmentId}/last-batch`, {
             method: 'PATCH',
         });
-        if (resp.ok) {
-            card.is_last_batch = true;
-            _renderScanList();
+        if (!resp.ok) return;
+        const data = await resp.json();
+
+        const card = _scannedCards.find(c => c.id === assignmentId);
+        if (card) card.is_last_batch = data.new_value;
+
+        // Clear any siblings that the server unset due to the one-per-order rule
+        for (const clearedId of (data.cleared_ids || [])) {
+            const other = _scannedCards.find(c => c.id === clearedId);
+            if (other) other.is_last_batch = false;
         }
+
+        _renderScanList();
     } catch (e) {
         // fail silently — operator can retry
     }
@@ -319,7 +325,11 @@ function _renderScanList() {
             <td class="px-4 py-2 text-sm text-gray-700">${c.batch_number}</td>
             <td class="px-4 py-2">
                 ${c.is_last_batch
-                    ? '<span class="bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 rounded-full">Last Batch</span>'
+                    ? `<button onclick="toggleLastBatch(${c.id})"
+                               class="bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 rounded-full hover:bg-amber-200 transition"
+                               title="Click to undo">
+                           Last Batch &times;
+                       </button>`
                     : `<button onclick="toggleLastBatch(${c.id})"
                                class="text-xs text-gray-400 hover:text-amber-600 hover:underline transition">
                            Mark as last

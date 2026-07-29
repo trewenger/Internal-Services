@@ -196,6 +196,34 @@
       "assigned_by": "admin",
       "assigned_at": "2026-07-29T18:59:14Z",
       "closed_at": null
+    },
+    {
+      "id": 14,
+      "card_id": "00003",
+      "order_number": "15924:001",
+      "part_number": "X0000231",
+      "revision": "",
+      "work_order_url": "https://radian.demanddriventech.com/workorder?OrderNumber=15924%3A001&PartNumber=X0000231&Revision=&Location=Radian+Weapons",
+      "batch_number": 1,
+      "is_last_batch": false,
+      "status": "active",
+      "assigned_by": "admin",
+      "assigned_at": "2026-07-29T20:40:25Z",
+      "closed_at": null
+    },
+    {
+      "id": 15,
+      "card_id": "00005",
+      "order_number": "15924:001",
+      "part_number": "X0000231",
+      "revision": "",
+      "work_order_url": "https://radian.demanddriventech.com/workorder?OrderNumber=15924%3A001&PartNumber=X0000231&Revision=&Location=Radian+Weapons",
+      "batch_number": 2,
+      "is_last_batch": true,
+      "status": "active",
+      "assigned_by": "admin",
+      "assigned_at": "2026-07-29T20:40:36Z",
+      "closed_at": null
     }
   ]
 }

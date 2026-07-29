@@ -124,7 +124,7 @@ def api_last_batch(assignment_id):
     result = card_data.set_last_batch(assignment_id)
     if not result['ok']:
         return jsonify({'error': result['error']}), 404
-    return jsonify({'success': True})
+    return jsonify({'success': True, 'new_value': result['new_value'], 'cleared_ids': result['cleared_ids']})
 
 
 @routing_cards_bp.route('/api/close', methods=['POST'])
@@ -142,16 +142,6 @@ def api_close():
 @login_required
 def api_cards():
     return jsonify({'success': True, 'cards': card_data.list_cards_with_assignments()})
-
-
-@routing_cards_bp.route('/api/debug-config')
-@login_required
-def api_debug_config():
-    return jsonify({
-        'INTUIFLOW_WORKORDER_BASE_URL': Config.INTUIFLOW_WORKORDER_BASE_URL,
-        'INTUIFLOW_LOCATION':           Config.INTUIFLOW_LOCATION,
-        'CARD_HOST_BASE_URL':           Config.CARD_HOST_BASE_URL,
-    })
 
 
 @routing_cards_bp.route('/api/cards/register', methods=['POST'])
