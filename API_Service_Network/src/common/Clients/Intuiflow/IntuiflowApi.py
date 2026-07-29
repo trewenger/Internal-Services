@@ -275,6 +275,23 @@ def get_closed_wo(closed_after:str, is_test_environment:bool=INTUIFLOW_USE_TEST)
         raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
     return {"status":response.status_code, "reason":response.reason, "data":response.json()}
 
+def get_resources(is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
+    """   """
+    base_url = INTUIFLOW_TEST_ADDRESS if is_test_environment else INTUIFLOW_PROD_ADDRESS
+    token = INTUIFLOW_TEST_TOKEN if is_test_environment else INTUIFLOW_PROD_TOKEN
+    url = f"{base_url}/api/v2/data/resources"
+
+    headers = {
+        "api_key": token
+    }
+
+    payload = {}
+
+    response = requests.request("GET", url, headers=headers, data=payload)
+    if not response.status_code or int(response.status_code) > 204 or int(response.status_code) < 200:
+        raise ApiCallFailure(f"The API call failed with status: {response.status_code}")
+    return {"status":response.status_code, "reason":response.reason, "data":response.json()}
+
 def get_closed_rope_items(closed_after:str, location:str=None, is_test_environment:bool=INTUIFLOW_USE_TEST) -> object:
     """   """
     base_url = INTUIFLOW_TEST_ADDRESS if is_test_environment else INTUIFLOW_PROD_ADDRESS

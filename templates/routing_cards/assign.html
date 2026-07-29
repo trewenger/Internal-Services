@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Assign Cards — Digital Routing Card Manager{% endblock %}
+
+{% block content %}
+<div class="min-h-screen p-6">
+    <div class="max-w-3xl mx-auto">
+
+        {% if not can_write %}
+        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded-lg px-4 py-3 mb-4 text-sm flex items-center gap-2">
+            <span class="font-bold">Read-only access</span> — you cannot assign cards.
+        </div>
+        {% endif %}
+
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Assign Cards</h1>
+                    <p class="text-gray-600 mt-1">Link routing cards to a work order at kickoff</p>
+                </div>
+                <button onclick="handleBack()" class="text-blue-600 hover:underline text-sm font-semibold bg-transparent border-0 cursor-pointer">
+                    &larr; Back
+                </button>
+            </div>
+        </div>
+
+        <!-- Stage 1: Identify Work Order -->
+        <div id="stage-1" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-1">Step 1 &mdash; Identify Work Order</h2>
+            <p class="text-sm text-gray-600 mb-4">
+                Copy the work order URL from your Intuiflow browser tab and paste it below.
+            </p>
+
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Intuiflow Work Order URL</label>
+                <textarea id="wo-url-input"
+                          class="w-full border border-gray-300 rounded-lg p-3 text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+                          rows="3"
+                          placeholder="https://...demanddriventech.com/workorder?OrderNumber=..."
+                          {% if not can_write %}disabled{% endif %}
+                          oninput="clearParseResult()"></textarea>
+            </div>
+
+            <div class="flex gap-3 items-center mb-4">
+                <button onclick="parseWorkOrderUrl()"
+                        class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition text-sm
+                               {% if not can_write %}opacity-50 cursor-not-allowed{% endif %}"
+                        {% if not can_write %}disabled{% endif %}>
+                    Parse URL
+                </button>
+                <div id="parse-error" class="hidden text-sm text-red-600 font-medium"></div>
+            </div>
+
+            <!-- Parse result -->
+            <div id="parse-result" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <p class="text-sm font-semibold text-blue-800 mb-2">Confirm work order details:</p>
+                <div class="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                        <span class="text-gray-500 block text-xs uppercase tracking-wider mb-0.5">Order Number</span>
+                        <span id="parsed-order" class="font-mono font-semibold text-gray-800"></span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 block text-xs uppercase tracking-wider mb-0.5">Part Number</span>
+                        <span id="parsed-part" class="font-mono font-semibold text-gray-800"></span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500 block text-xs uppercase tracking-wider mb-0.5">Revision</span>
+                        <span id="parsed-rev" class="font-mono font-semibold text-gray-800"></span>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <button onclick="confirmWorkOrder()"
+                            class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-5 rounded transition text-sm">
+                        Confirm &amp; Start Scanning
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stage 2: Scan Cards (hidden until work order confirmed) -->
+        <div id="stage-2" class="hidden">
+
+            <!-- Work order summary banner -->
+            <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <div class="text-sm">
+                    <span class="font-semibold text-green-800">Active Work Order:</span>
+                    <span id="confirmed-order" class="font-mono font-bold text-gray-800 ml-2"></span>
+                    <span class="text-gray-500 mx-2">&middot;</span>
+                    <span class="text-gray-500">Part:</span>
+                    <span id="confirmed-part" class="font-mono text-gray-800 ml-1"></span>
+                    <span class="text-gray-500 mx-2">&middot;</span>
+                    <span class="text-gray-500">Rev:</span>
+                    <span id="confirmed-rev" class="font-mono text-gray-800 ml-1"></span>
+                </div>
+            </div>
+
+            <!-- Scan input -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-4">
+                <h2 class="text-lg font-semibold text-gray-800 mb-1">Step 2 &mdash; Scan Cards</h2>
+                <p class="text-sm text-gray-600 mb-4">
+                    Scan or type a card ID and press Enter. The input will auto-refocus after each scan.
+                </p>
+                <div class="flex gap-3">
+                    <input id="scan-input"
+                           type="text"
+                           class="flex-1 border-2 border-blue-300 rounded-lg p-3 font-mono text-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                           placeholder="Scan card ID..."
+                           autocomplete="off"
+                           autofocus>
+                </div>
+                <div id="scan-error" class="hidden mt-2 text-sm text-red-600 font-medium"></div>
+            </div>
+
+            <!-- Scanned card list -->
+            <div class="bg-white rounded-lg shadow-md mb-4">
+                <div class="p-4 border-b flex justify-between items-center">
+                    <h3 class="font-semibold text-gray-800">Assigned Cards
+                        <span id="scan-count-badge" class="ml-2 bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">0</span>
+                    </h3>
+                </div>
+                <div id="scan-list-empty" class="p-8 text-center text-gray-400 text-sm">
+                    No cards scanned yet — scan the first card above.
+                </div>
+                <table id="scan-list-table" class="w-full hidden">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Card ID</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Batch #</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Batch</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scan-list-body" class="divide-y divide-gray-100"></tbody>
+                </table>
+            </div>
+
+            <!-- Done -->
+            <div class="bg-white rounded-lg shadow-md p-4 flex justify-end">
+                <a href="{{ url_for('routing_cards.index') }}"
+                   class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded transition text-sm">
+                    Complete
+                </a>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.ROUTING_CARDS_CONFIG = {
+    can_write: {{ 'true' if can_write else 'false' }},
+};
+</script>
+<script src="{{ url_for('static', filename='js/routing_cards.js') }}"></script>
+{% endblock %}
