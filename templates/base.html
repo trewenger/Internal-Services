@@ -39,6 +39,8 @@
                     {% set _current = 'Intuiflow' %}
                 {% elif _path.startswith('/signage') %}
                     {% set _current = 'Digital Signage' %}
+                {% elif _path.startswith('/routing-cards') %}
+                    {% set _current = 'Digital Routing Card Manager' %}
                 {% elif _path.startswith('/services') %}
                     {% set _current = 'Various Services' %}
                 {% elif _path.startswith('/settings') %}
@@ -88,6 +90,14 @@
                                   {% if _current == 'Intuiflow' %}bg-blue-50 text-blue-600{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
                             {% if _current == 'Intuiflow' %}<span class="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>{% else %}<span class="w-1.5 h-1.5 flex-shrink-0"></span>{% endif %}
                             Intuiflow
+                        </a>
+                        {% endif %}
+                        {% if user_access.get('routing-cards', 'none') != 'none' %}
+                        <a href="{{ url_for('routing_cards.index') }}"
+                           class="flex items-center gap-2 px-4 py-2 text-sm font-medium transition
+                                  {% if _current == 'Digital Routing Card Manager' %}bg-blue-50 text-blue-600{% else %}text-gray-700 hover:bg-gray-50{% endif %}">
+                            {% if _current == 'Digital Routing Card Manager' %}<span class="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0"></span>{% else %}<span class="w-1.5 h-1.5 flex-shrink-0"></span>{% endif %}
+                            Digital Routing Card Manager
                         </a>
                         {% endif %}
                         {% if user_access.get('services', 'none') != 'none' %}

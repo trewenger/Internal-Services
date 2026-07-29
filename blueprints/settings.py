@@ -9,7 +9,7 @@ import requests, json, os, subprocess, threading
 
 settings_bp = Blueprint('settings', __name__)
 
-SECTIONS = ['retail', 'services', 'intuiflow', 'settings', 'promo', 'signage']
+SECTIONS = ['retail', 'services', 'intuiflow', 'settings', 'promo', 'signage', 'routing-cards']
 SENDER_EMAIL = Config.SENDER_EMAIL
 _BAT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'update_and_restart_service.bat')
 

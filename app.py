@@ -32,6 +32,7 @@ from blueprints.intuiflow import intuiflow_bp
 from blueprints.settings import settings_bp
 from blueprints.promo import promo_bp
 from blueprints.signage import signage_bp
+from blueprints.routing_cards import routing_cards_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(retail_bp, url_prefix='/retail')
@@ -40,6 +41,7 @@ app.register_blueprint(intuiflow_bp, url_prefix='/intuiflow')
 app.register_blueprint(settings_bp, url_prefix='/settings')
 app.register_blueprint(promo_bp, url_prefix='/retail-promo')
 app.register_blueprint(signage_bp, url_prefix='/signage')
+app.register_blueprint(routing_cards_bp, url_prefix='/routing-cards')
 
 # ------------------------------------------------------------------------------- #
 

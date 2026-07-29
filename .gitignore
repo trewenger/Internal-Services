@@ -67,3 +67,5 @@ API_Service_Network/DigitalDisplayBoard/media
 API_Service_Network/DigitalDisplayBoard/ddb_config.json
 API_Service_Network/DigitalDisplayBoard/ddb_log.json
 update_and_restart_service.bat
+raspi-kiosk-setup.md
+API_Service_Network/InventoryAudit
