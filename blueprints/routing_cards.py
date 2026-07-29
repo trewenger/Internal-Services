@@ -1,5 +1,5 @@
 import re
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 from flask import Blueprint, jsonify, redirect, render_template, request, session
 
@@ -28,15 +28,23 @@ def resolve(card_id):
         return render_template('routing_cards/card_status.html',
                                status='unassigned', card_id=card_id)
 
-    url = assignment.get('work_order_url', '')
-    if not url:
+    if not assignment.get('work_order_url'):
         return render_template('routing_cards/card_status.html',
                                status='unassigned', card_id=card_id)
 
-    # Use the configured base URL regardless of what host was in the pasted URL,
-    # so cards assigned via an internal proxy still redirect to the correct external address.
-    query = urlparse(url).query
-    return redirect(f"{Config.INTUIFLOW_WORKORDER_BASE_URL.rstrip('/')}?{query}", 302)
+    if not Config.INTUIFLOW_WORKORDER_BASE_URL:
+        return render_template('routing_cards/card_status.html',
+                               status='config_error', card_id=card_id), 500
+
+    # Reconstruct from stored fields rather than parsing the stored URL's host,
+    # so internal-proxy URLs pasted during assignment never pollute the redirect.
+    params = urlencode({
+        'OrderNumber': assignment.get('order_number', ''),
+        'PartNumber':  assignment.get('part_number', ''),
+        'Revision':    assignment.get('revision', ''),
+        'Location':    Config.INTUIFLOW_LOCATION,
+    })
+    return redirect(f"{Config.INTUIFLOW_WORKORDER_BASE_URL.rstrip('/')}?{params}", 302)
 
 
 # ============================================================================
@@ -127,6 +135,16 @@ def api_close():
 @login_required
 def api_cards():
     return jsonify({'success': True, 'cards': card_data.list_cards_with_assignments()})
+
+
+@routing_cards_bp.route('/api/debug-config')
+@login_required
+def api_debug_config():
+    return jsonify({
+        'INTUIFLOW_WORKORDER_BASE_URL': Config.INTUIFLOW_WORKORDER_BASE_URL,
+        'INTUIFLOW_LOCATION':           Config.INTUIFLOW_LOCATION,
+        'CARD_HOST_BASE_URL':           Config.CARD_HOST_BASE_URL,
+    })
 
 
 @routing_cards_bp.route('/api/cards/register', methods=['POST'])
