@@ -1,7 +1,7 @@
 import re
 from urllib.parse import urlencode, urlparse
 
-from flask import Blueprint, jsonify, redirect, render_template, request, session
+from flask import Blueprint, jsonify, redirect, render_template, render_template_string, request, session
 
 from API_Service_Network.DigitalRoutingCardManager.data import CardData
 from blueprints.auth import access_required, login_required
@@ -44,7 +44,14 @@ def resolve(card_id):
         'Revision':    assignment.get('revision', ''),
         'Location':    Config.INTUIFLOW_LOCATION,
     })
-    return redirect(f"{Config.INTUIFLOW_WORKORDER_BASE_URL.rstrip('/')}?{params}", 302)
+    target = f"{Config.INTUIFLOW_WORKORDER_BASE_URL.rstrip('/')}?{params}"
+    # Use a JS redirect instead of HTTP 302 — IIS ARR rewrites Location headers
+    # in redirect responses, changing external hosts back to rwas01.
+    return render_template_string(
+        '<meta http-equiv="refresh" content="0; url={{ url }}">'
+        '<script>window.location.replace({{ url | tojson }});</script>',
+        url=target,
+    ), 200
 
 
 # ============================================================================
