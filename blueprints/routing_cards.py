@@ -1,6 +1,8 @@
+import os
 import re
 from urllib.parse import urlencode, urlparse
 
+from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Blueprint, jsonify, redirect, render_template, render_template_string, request, session
 
 from API_Service_Network.DigitalRoutingCardManager.data import CardData
@@ -10,6 +12,12 @@ from config import Config
 routing_cards_bp = Blueprint('routing_cards', __name__)
 
 card_data = CardData()
+
+_scheduler = BackgroundScheduler()
+_scheduler.add_job(card_data.auto_close_wos, 'interval', minutes=10, id='job_routing_cards_auto_close')
+
+if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or os.environ.get('PRODUCTION') == '1':
+    _scheduler.start()
 
 
 # ============================================================================
@@ -65,6 +73,11 @@ def index():
     cards     = card_data.list_cards_with_assignments()
     card_host = Config.CARD_HOST_BASE_URL.rstrip('/')
 
+    unassigned_cards = [a for a in cards if not a.get("assignment")]
+    assigned_cards = [a for a in cards if a.get("assignment")]
+    assigned_cards = sorted(assigned_cards, key=lambda d: ([d.get("assignment").get("order_number"), 
+                                                            d.get("assignment").get("batch_number")]))
+
     # Derive active orders for the close-work-order dropdown
     order_counts = {}
     for c in cards:
@@ -75,8 +88,8 @@ def index():
                      for on, cnt in sorted(order_counts.items())]
 
     return render_template('routing_cards/index.html',
-                           cards=cards, can_write=can_write,
-                           card_host=card_host, active_orders=active_orders)
+                           assigned_cards=assigned_cards, unassigned_cards = unassigned_cards,
+                           can_write=can_write, card_host=card_host, active_orders=active_orders)
 
 
 @routing_cards_bp.route('/assign')
@@ -125,6 +138,15 @@ def api_last_batch(assignment_id):
     if not result['ok']:
         return jsonify({'error': result['error']}), 404
     return jsonify({'success': True, 'new_value': result['new_value'], 'cleared_ids': result['cleared_ids']})
+
+
+@routing_cards_bp.route('/api/cards/<card_id>/unassign', methods=['POST'])
+@login_required
+def api_unassign_card(card_id):
+    result = card_data.unassign_card(card_id.strip())
+    if not result['ok']:
+        return jsonify({'error': result['error']}), 404
+    return jsonify({'success': True})
 
 
 @routing_cards_bp.route('/api/close', methods=['POST'])

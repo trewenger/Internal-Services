@@ -99,6 +99,26 @@ async function closeWorkOrder() {
     }
 }
 
+// ---- Unassign single card from card pool -----------------------------------
+async function unassignCard(cardId, orderNumber) {
+    if (!RC.can_write) return;
+    if (!confirm(`Unassign card "${cardId}" from order "${orderNumber}"?\n\nThe card will return to the unassigned pool.`)) return;
+
+    try {
+        const resp = await fetch(`/routing-cards/api/cards/${encodeURIComponent(cardId)}/unassign`, {
+            method: 'POST',
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+            alert(data.error || 'Failed to unassign card.');
+            return;
+        }
+        location.reload();
+    } catch (e) {
+        alert('Network error — please try again.');
+    }
+}
+
 // ---- Refresh card table ----------------------------------------------------
 
 function refreshCards() {
