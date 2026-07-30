@@ -69,3 +69,4 @@ API_Service_Network/DigitalDisplayBoard/ddb_log.json
 update_and_restart_service.bat
 raspi-kiosk-setup.md
 API_Service_Network/InventoryAudit
+API_Service_Network/DigitalRoutingCardManager/routing_cards.json
