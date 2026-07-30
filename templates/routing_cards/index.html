@@ -70,63 +70,16 @@
             </div>
         </div>
 
-        <!-- Close Work Order -->
+        <!-- Assigned Card Pool Table -->
         <div class="bg-white rounded-lg shadow-md mb-6">
-            <div class="p-4 border-b cursor-pointer hover:bg-gray-50 transition" onclick="toggleClose()">
-                <div class="flex justify-between items-center">
-                    <div class="flex items-center gap-3">
-                        <h2 class="text-lg font-semibold text-gray-800">Close Work Order</h2>
-                        <span class="text-sm text-gray-500">(Click to expand)</span>
-                    </div>
-                    <svg id="close-arrow" class="w-5 h-5 text-gray-500 transform transition-transform"
-                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                    </svg>
-                </div>
-            </div>
-            <div id="close-content" class="hidden p-6">
-                <p class="text-sm text-gray-600 mb-3">
-                    Closing a work order releases all of its assigned cards back to the pool.
-                </p>
-                {% if active_orders %}
-                <div class="flex gap-3 items-end">
-                    <div class="flex-1">
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Active Work Order</label>
-                        <select id="close-order-select"
-                                class="w-full border border-gray-300 rounded-lg p-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                {% if not can_write %}disabled{% endif %}>
-                            <option value="">— Select an order —</option>
-                            {% for o in active_orders %}
-                            <option value="{{ o.order_number }}">
-                                {{ o.order_number }} ({{ o.card_count }} card{{ 's' if o.card_count != 1 else '' }})
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <button onclick="closeWorkOrder()"
-                            class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition text-sm whitespace-nowrap
-                                   {% if not can_write %}opacity-50 cursor-not-allowed{% endif %}"
-                            {% if not can_write %}disabled{% endif %}>
-                        Close Order
-                    </button>
-                </div>
-                {% else %}
-                <p class="text-sm text-gray-500 italic">No active work orders — nothing to close.</p>
-                {% endif %}
-                <div id="close-result" class="hidden mt-3"></div>
-            </div>
-        </div>
-
-        <!-- Card Pool Table -->
-        <div class="bg-white rounded-lg shadow-md">
             <div class="p-4 border-b flex justify-between items-center">
-                <h2 class="text-lg font-semibold text-gray-800">Card Pool
-                    <span class="text-sm font-normal text-gray-500 ml-2">{{ cards | length }} card{{ 's' if cards | length != 1 else '' }}</span>
+                <h2 class="text-lg font-semibold text-gray-800">Assigned Card Pool
+                    <span class="text-sm font-normal text-gray-500 ml-2">{{ assigned_cards | length }} card{{ 's' if assigned_cards | length != 1 else '' }}</span>
                 </h2>
                 <button onclick="refreshCards()" class="text-blue-600 hover:underline text-sm font-semibold">Refresh</button>
             </div>
 
-            {% if cards %}
+            {% if assigned_cards %}
             <div class="overflow-x-auto">
                 <table class="w-full" id="cards-table">
                     <thead class="bg-gray-50 border-b">
@@ -139,7 +92,83 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100" id="cards-tbody">
-                        {% for c in cards %}
+                        {% for c in assigned_cards %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 font-mono text-sm font-semibold text-gray-800">{{ c.card_id }}</td>
+                            <td class="px-4 py-3">
+                                {% if c.assignment %}
+                                <span class="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">Active</span>
+                                {% else %}
+                                <span class="bg-gray-100 text-gray-600 text-xs font-bold px-3 py-1 rounded-full">In Pool</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-700">
+                                {% if c.assignment %}
+                                <span class="font-mono">{{ c.assignment.order_number }}</span>
+                                <span class="text-gray-400 mx-1">·</span>
+                                <span class="text-gray-500 text-xs">{{ c.assignment.part_number }}</span>
+                                {% else %}
+                                <span class="text-gray-400">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-700">
+                                {% if c.assignment %}
+                                {{ c.assignment.batch_number }}
+                                {% if c.assignment.is_last_batch %}
+                                <span class="ml-1 bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full">Last</span>
+                                {% endif %}
+                                {% else %}
+                                <span class="text-gray-400">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-500 font-mono">{{ c.created_at[:10] }}</td>
+                            {% if can_write %}
+                            <td class="px-4 py-3">
+                                <button
+                                    onclick="unassignCard('{{ c.card_id }}', '{{ c.assignment.order_number }}')"
+                                    class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded transition text-xs">
+                                    Unassign
+                                </button>
+                            </td>
+                            {% else %}
+                            <td></td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-10 text-center text-gray-500">
+                <p class="text-lg font-semibold mb-1">No cards assigned</p>
+                <p class="text-sm">Use the "Assign Cards" button above to assign cards from the unassigned pool.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Unassigned Card Pool Table -->
+        <div class="bg-white rounded-lg shadow-md mb-6">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-800">Unassigned Card Pool
+                    <span class="text-sm font-normal text-gray-500 ml-2">{{ unassigned_cards | length }} card{{ 's' if unassigned_cards | length != 1 else '' }}</span>
+                </h2>
+                <button onclick="refreshCards()" class="text-blue-600 hover:underline text-sm font-semibold">Refresh</button>
+            </div>
+
+            {% if unassigned_cards %}
+            <div class="overflow-x-auto">
+                <table class="w-full" id="cards-table">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Card ID</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Assignment</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Batch</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100" id="cards-tbody">
+                        {% for c in unassigned_cards %}
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-3 font-mono text-sm font-semibold text-gray-800">{{ c.card_id }}</td>
                             <td class="px-4 py-3">
@@ -191,6 +220,7 @@
 window.ROUTING_CARDS_CONFIG = {
     can_write: {{ 'true' if can_write else 'false' }},
 };
+setTimeout(() => location.reload(), 10 * 60 * 1000);
 </script>
 <script src="{{ url_for('static', filename='js/routing_cards.js') }}"></script>
 {% endblock %}

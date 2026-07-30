@@ -3,7 +3,8 @@ import os
 import re
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date, timedelta
+from common.Clients.Intuiflow.IntuiflowApi import get_closed_wo
 
 _DIR  = os.path.dirname(os.path.abspath(__file__))
 _FILE = os.path.join(_DIR, 'routing_cards.json')
@@ -180,6 +181,19 @@ class CardData:
             self._write(data)
             return {'ok': True, 'new_value': new_value, 'cleared_ids': cleared_ids}
 
+    def unassign_card(self, card_id: str) -> dict:
+        with self._lock:
+            data = self._read()
+            now  = self._now()
+            for a in data['assignments']:
+                if a['card_id'] == card_id and a['status'] == 'active':
+                    a['status']    = 'closed'
+                    a['closed_at'] = now
+                    self._prune_closed(data)
+                    self._write(data)
+                    return {'ok': True}
+            return {'ok': False, 'error': 'No active assignment found for this card'}
+
     def close_work_order(self, order_number: str) -> dict:
         with self._lock:
             data  = self._read()
@@ -212,3 +226,30 @@ class CardData:
             if added:
                 self._write(data)
             return {'ok': True, 'added': added, 'duplicates': duplicates}
+
+    def auto_close_wos(self) -> None:
+        """
+        Close open work orders based on recently closed work orders
+        in Intuiflow - checked via the Intuiflow API.
+        """
+        try:
+            # get orders closed since yesterday
+            yesterday = (date.today() - timedelta(days=1)).strftime("%m-%d-%Y")
+            closed_wos = dict(get_closed_wo(str(yesterday))).get("data")
+            closed_wos = [x.get("OrderNumber") for x in closed_wos]
+
+            # find matches and unassign
+            assignments = self.list_cards_with_assignments()
+            matches = set()
+            for y in assignments:
+                data = y.get("assignment")
+                if data:
+                    order_num = data.get("order_number")
+                    if order_num in closed_wos:
+                        matches.add(order_num)
+
+            # close the matched orders
+            for wo in matches:
+                self.close_work_order(wo)
+        except Exception as e:
+            print(f"Unable to automatically close the WOs: {e}")
