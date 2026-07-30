@@ -119,6 +119,30 @@ async function unassignCard(cardId, orderNumber) {
     }
 }
 
+// ---- QR code row toggle ----------------------------------------------------
+
+function toggleCardQR(cardId) {
+    const row     = document.getElementById(`qr-row-${cardId}`);
+    const chevron = document.getElementById(`chevron-${cardId}`);
+    if (!row) return;
+
+    const opening = row.classList.contains('hidden');
+    row.classList.toggle('hidden', !opening);
+    if (chevron) chevron.style.transform = opening ? 'rotate(180deg)' : '';
+
+    if (opening) {
+        const qrEl = document.getElementById(`qr-${cardId}`);
+        if (qrEl && qrEl.dataset.qrRendered === 'false') {
+            new QRCode(qrEl, {
+                text:   qrEl.dataset.url,
+                width:  128,
+                height: 128,
+            });
+            qrEl.dataset.qrRendered = 'true';
+        }
+    }
+}
+
 // ---- Refresh card table ----------------------------------------------------
 
 function refreshCards() {
