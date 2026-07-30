@@ -244,7 +244,7 @@ function _initScanInput() {
     input.addEventListener('keydown', async (e) => {
         if (e.key !== 'Enter') return;
         e.preventDefault();
-        const cardId = input.value.trim();
+        const cardId = _extractCardId(input.value.trim());
         input.value  = '';
         if (!cardId) return;
         await _assignCard(cardId);
@@ -387,6 +387,15 @@ function _renderScanList() {
 // ============================================================================
 // Shared utilities
 // ============================================================================
+
+function _extractCardId(raw) {
+    try {
+        const url   = new URL(raw);
+        const match = url.pathname.match(/\/routing-cards\/c\/(.+)/);
+        if (match) return match[1].trim();
+    } catch (_) {}
+    return raw;
+}
 
 function _showResult(el, type, message) {
     if (!el) return;
