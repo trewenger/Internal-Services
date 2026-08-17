@@ -1,5 +1,6 @@
 from config import Config
 from common.Clients.Fishbowl.FishbowlSession import FishbowlSession
+from common.Clients.Microsoft.GraphSession import GraphSession
 from common.Clients.Intuiflow.IntuiflowApi import (
     create_import, create_import_item, validate_import, run_import, delete_import,
     get_closed_wo
@@ -40,6 +41,57 @@ class UploadFbFiles:
         self._supply_order   = None
         self._demand_order   = None
         self._inventory      = None
+        self._resource       = None
+        self._routings       = None
+
+    def _get_resources(self):
+        """ Get the resource and routing files from SharePoint """
+        try:
+            # Graph API session and site connection
+            session = GraphSession()
+            session.open_sharepoint_site("xfactormachine.sharepoint.com", "sites/Manufacturing")
+            self.log.log("Get Resources", "Successfully connected to SharePoint.")
+
+            # Retrieve the resource list from SharePoint
+            resources_list_id = session.get_list_id("Routing Resources")
+            resources = session.get_list_items(resources_list_id)
+            self.log.log("Get Resources", f"Successfully retrieved {len(resources)} resource records from the SharePoint list.")
+
+            # Parse the SharePoint list response
+            parsed_resources = []
+            for r in resources:
+                r = r.get("fields")
+                parsed_resources.append({
+                    "Name": r.get("Title"),
+                    "Type": r.get("ResourceType"),
+                    "Location": r.get("field_1"),
+                    "Description": r.get("field_2"),
+                    "Count": r.get("field_4"),
+                    "CrewSize": r.get("field_5"),
+                    "Buffer": r.get("field_6"),
+                    "SetupTime": r.get("field_7"),
+                    "FixedOffset": r.get("field_8"),
+                    "Efficiency": r.get("field_12"),
+                    "Notes": r.get("field_13") or "",
+                    "RequireAtBufferReceive": r.get("field_14"),
+                    "RequireToStart": r.get("field_15"),
+                    "RequireToComplete": r.get("field_16"),
+                    "ShowUnreleasedonSchedules": r.get("field_17"),
+                    "ResourceCalendar": r.get("field_18"),
+                    "IsActive": r.get("field_19")
+                })
+
+            # Reformat the SharePoint list response for the Intuiflow API
+            self._resource = {
+                "Data": parsed_resources, 
+                "Mode": "Replace", 
+                "RecordCount": len(parsed_resources)
+            }
+
+            self.log.log("Get Resources", f"Successfully parsed and saved SharePoint resources.")
+
+        except Exception as e:
+            ...
 
     def _get_closed_work_orders(self) -> None:
         """ Get closed orders from intuiflow to exclude them in the supply order query. """
@@ -159,7 +211,7 @@ class UploadFbFiles:
             )
 
             self._demand_history = _run("DemandArchive",   self._sql_demand_history, "Update")
-            self._part           = _run("Part",            self._sql_part,           "Update")
+            self._part           = _run("Part",            self._sql_part,           "Replace")
             self._bom            = _run("BillOfMaterials", self._sql_bom,            "Replace")
             self._supply_order   = _run("SupplyOrder",     self._sql_supply_order,   "Replace")
             self._demand_order   = _run("DemandOrder",     self._sql_demand_order,   "Replace")
@@ -329,6 +381,7 @@ class UploadFbFiles:
             self._get_closed_work_orders()
             # query Fishbowl for all six file datasets in a single session
             self._query_fishbowl()
+            # self._get_resources()
             # upload part alone (Mode=Update)
             if self._part:
                 self._upload_standalone("Part", self._part)
@@ -343,6 +396,7 @@ class UploadFbFiles:
                 ("SupplyOrder",    self._supply_order),
                 ("DemandOrder",    self._demand_order),
                 ("PartInventory",  self._inventory),
+                # ("Resource",      self._resource)
             ])
         except Exception as e:
             self.log.log("Auto Run", str(e), True)
