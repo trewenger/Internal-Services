@@ -29,6 +29,16 @@ SS = None
 TODAY = None
 LOG = None
 WIP_NAMES_FLAG = 0
+INGORED_PARTS = [
+    "SVC000021",
+    "SVC000027",
+    "SVC000527",
+    "SVC000522",
+    "SVC000566",
+    "SVC000567",
+    "SVC000563",
+    "SVC000564"
+]
 # ---------------------------- Functions ------------------------------ #
 
 # Get Fishbowl Data 
