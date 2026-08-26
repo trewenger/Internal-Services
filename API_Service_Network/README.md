@@ -154,26 +154,41 @@ sheet.append_rows("Sheet1", "A1", [["Row1", "Data"], ["Row2", "Data"]])
 
 ### Microsoft Graph Client
 
-Interact with OneDrive/SharePoint Excel files via Microsoft Graph API.
+Interact with OneDrive files and SharePoint sites (document libraries, files, and lists) via Microsoft Graph API. App-only auth via a self-signed PFX certificate.
 
 ```python
 from common.Clients.Microsoft.GraphSession import GraphSession
 
-# Initialize with user and file path
-graph = GraphSession(
-    user_principle_name="user@company.com",
-    OneDrive_file_path="Shared Documents/Reports/data.xlsx"
+# Authenticate (no file/site opened yet)
+graph = GraphSession()
+
+# --- OneDrive ---
+graph.open_onedrive_file(
+    user_principal_name="user@company.com",
+    file_path="Reports/data.xlsx"
 )
-
-# Read Excel range
 data = graph.get_excel_range("Sheet1", "A1:C10")
-
-# Update Excel range
 graph.update_excel_range("Sheet1", "A1", [["New", "Data"], ["Row2", "Data"]])
+
+# --- SharePoint site + document library ---
+graph.open_sharepoint_site(
+    hostname="contoso.sharepoint.com",
+    site_path="/sites/TeamSite",
+    file_path="Shared Documents/Reports/data.xlsx"  # optional, opens the file immediately
+)
+items = graph.list_drive_items("Shared Documents/Reports")
+content = graph.download_file("Shared Documents/Reports/data.xlsx")
+graph.upload_file("Shared Documents/Reports/new.xlsx", content)
+
+# --- SharePoint lists ---
+list_id = graph.get_list_id("Work Orders")
+open_items = graph.get_list_items(list_id, filter_query="fields/Status eq 'Open'")
+graph.create_list_item(list_id, {"Title": "New Item", "Status": "Open"})
+graph.update_list_item(list_id, open_items[0]["id"], {"Status": "Closed"})
 ```
 
 **Environment Variables Required:**
-- `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`
+- `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_APP_NAME`
 - `GRAPH_PFX_PATH`, `GRAPH_PFX_PASSWORD`, `GRAPH_PFX_THUMBPRINT`
 
 ---

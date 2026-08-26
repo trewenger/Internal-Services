@@ -65,7 +65,7 @@ class Config:
     INTUIFLOW_PROD_TOKEN = os.getenv('INTUIFLOW_PROD_TOKEN', 'intuiflow-prod-token')
     INTUIFLOW_TEST_ADDRESS = os.getenv('INTUIFLOW_TEST_ADDRESS', 'intuiflow-test-url')
     INTUIFLOW_TEST_TOKEN = os.getenv('INTUIFLOW_TEST_TOKEN', 'intuiflow-test-token')
-    INTUIFLOW_USE_TEST = os.getenv('USE_TEST_DB', "True") == "True"
+    INTUIFLOW_USE_TEST = os.getenv('INTUIFLOW_USE_TEST', "True") == "True"
     INTUIFLOW_ROPE_ITEMS_LOCATION = os.getenv('INTUIFLOW_ROPE_ITEMS_LOCATION', 'Radian Weapons')
         # Fishbowl custom field IDs (test and prod are separate DBs with different IDs)
     FISHBOWL_TEST_CF_MO_ROUTING_NAME_ID   = int(os.getenv('FISHBOWL_TEST_CF_MO_ROUTING_NAME_ID',   0))
