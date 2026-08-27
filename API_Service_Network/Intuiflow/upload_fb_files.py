@@ -1,5 +1,6 @@
 from config import Config
 from common.Clients.Fishbowl.FishbowlSession import FishbowlSession
+from common.Clients.Microsoft.GraphSession import GraphSession
 from common.Clients.Intuiflow.IntuiflowApi import (
     create_import, create_import_item, validate_import, run_import, delete_import,
     get_closed_wo
@@ -8,6 +9,7 @@ from common.Utils.Logging import SessionLog
 from common.Utils.Utils import load_query, csv_export
 import time 
 from datetime import datetime, timedelta
+from pprint import pprint
 
 # ── Public entry point ─────────────────────────────────────────────────────────
 
@@ -26,6 +28,7 @@ class UploadFbFiles:
         self._is_intuiflow_test = Config.INTUIFLOW_USE_TEST
         self._is_fb_test_db     = Config.USE_TEST_DB
         self._closed_wo_nums        = ["000000"]    # place holder value so the query always has something
+        self._resource_lookup       = None          # used for resource lookup by ID in the get_routings function
         # SQL queries loaded once at init
         self._sql_demand_history = load_query("DemandHistory")
         self._sql_part           = load_query("Part")
@@ -40,6 +43,160 @@ class UploadFbFiles:
         self._supply_order   = None
         self._demand_order   = None
         self._inventory      = None
+        self._resource       = None
+        self._routings       = None
+
+    def _get_resources(self):
+        """ Get the resource file from SharePoint and parse into Intuiflow compatible API values """
+        try:
+            # Graph API session and site connection
+            session = GraphSession()
+            session.open_sharepoint_site("xfactormachine.sharepoint.com", "sites/Manufacturing")
+            self.log.log("Get Resources", "Successfully connected to SharePoint.")
+
+            # Retrieve the resource list from SharePoint
+            resources_list_id = session.get_list_id("Resources")
+            resources = session.get_list_items(resources_list_id)
+            self.log.log("Get Resources", f"Successfully retrieved {len(resources)} resource records from the SharePoint list.")
+            
+            # Parse the SharePoint list response
+            parsed_resources = []
+            resource_lookup_dict = {}
+            for r in resources:
+                r = r.get("fields")
+                parsed = {
+                    "Name": r.get("Title"),
+                    "Location": "Radian Weapons",
+                    "Description": r.get("field_2"),
+                    "Type": r.get("ResourceType"),
+                    "Count": r.get("field_4"),
+                    "CrewSize": r.get("field_5"),
+                    "Buffer": r.get("field_6"),
+                    "SetupTime": r.get("field_7"),
+                    "FixedOffset": r.get("field_8"),
+                    "Efficiency": r.get("field_12"),
+                    "Notes": r.get("field_13") or "",
+                    "RequireAtBufferReceive": r.get("field_14"),
+                    "RequireToStart": r.get("field_15"),
+                    "RequireToComplete": r.get("field_16"),
+                    "ShowUnreleasedonSchedules": r.get("field_17"),
+                    "ResourceCalendar": r.get("field_18"),
+                    "IsActive": r.get("field_19")
+                }
+
+                parsed_resources.append(parsed)
+                resource_lookup_dict[r.get("id")] = parsed
+
+            # used to parse routings in _get_routings
+            self._resource_lookup = resource_lookup_dict    
+
+            # Reformat the SharePoint list response for the Intuiflow API
+            self._resource = {
+                "Data": parsed_resources, 
+                "Mode": "Replace", 
+                "RecordCount": len(parsed_resources)
+            }
+
+            self.log.log("Get Resources", f"Successfully parsed and saved SharePoint resources.")
+
+        except Exception as e:
+            self.log.log("Get Resources", f"Failed to connect to sharepoint and parse the resource list: {e}")
+            raise
+
+    def _get_routings(self):
+        """ Get the routing files from SharePoint and parse into the correct API format for Intuiflow """
+        try:
+            # Graph API session and site connection
+            session = GraphSession()
+            session.open_sharepoint_site("xfactormachine.sharepoint.com", "sites/Manufacturing")
+            self.log.log("Get Routings", "Successfully connected to SharePoint.")
+
+            # Retrieve the resource list from SharePoint
+            routings_list_id = session.get_list_id("Routings")
+            routings = session.get_list_items(routings_list_id)
+            self.log.log("Get Routings", f"Successfully retrieved {len(routings)} routing records from the SharePoint list.")
+
+            # Retrieve the routing headers list from SharePoint
+            headers_list_id = session.get_list_id("Routing Headers")
+            headers = session.get_list_items(headers_list_id)
+            self.log.log("Get Routings", f"Successfully retrieved {len(headers_list_id)} routing headers from the SharePoint list.")
+
+            parsed_headers = {}
+            for h in headers:
+                h = h.get("fields")
+                parsed_headers[h.get("id")] = h.get("Title")
+            
+            # Parse the SharePoint list Routings response - Routing ID: {routing info}, and link the resource name
+            parsed_routings = {}
+            for r in routings:
+                r = r.get("fields")
+                resource_lookup_id = r.get("ResourceV3LookupId")
+                linked_resource = self._resource_lookup.get(resource_lookup_id)
+                parsed_routings.setdefault(r.get("RoutingHeaderLookupId"), []).append({
+                    "RoutingName": parsed_headers.get(r.get("RoutingHeaderLookupId")),
+                    "RoutingId": r.get("RoutingHeaderLookupId"),
+                    "Resource": linked_resource.get("Name"),
+                    "Location": "Radian Weapons",
+                    "RunRate": r.get("field_1"),
+                    "SetupTime": r.get("field_3"),
+                    "FixedOffset": r.get("field_4"),
+                    "IsPrimaryConstraint": r.get("field_5"),
+                    "OperationSequenceNumber": int(r.get("field_6")),
+                    "ParallelOperationResourceCount": int(r.get("ParallelOperationResourceCount"))
+                })
+            
+            # Parse the Sharepoint list response for Routing Assignments and build the Intuiflow payload data
+            assignments_list_id = session.get_list_id("Routing Assignments")
+            assignments = session.get_list_items(assignments_list_id)
+            self.log.log("Get Routings", f"Successfully retrieved {len(assignments)} routing assignment records from the SharePoint list.")
+
+            # create a lookup for parts in intuiflow so routes for parts not in Intuiflow are excluded
+            part_lookup = set(x.get("PartNumber") for x in self._part.get("Data"))
+            
+            routing_assignments = []
+            for a in assignments:
+                a = a.get("fields")
+                if a.get("Title") not in part_lookup:       # skip routings for parts not in Intuiflow
+                    continue
+
+                routing_id = a.get("RoutingNameV2LookupId")
+                matched_routes = parsed_routings.get(routing_id)
+                for route in matched_routes:
+                    routing_assignments.append({
+                        # matched routing fields
+                        "RoutingName":              route.get("RoutingName"),
+                        "Revision":                 "", 
+                        "Resource":                 route.get("Resource"),
+                        "OperationDescription":     route.get("Resource"),
+                        "Location":                 "Radian Weapons",
+                        "RunRate":                  route.get("RunRate"),
+                        "SetupTime":                route.get("SetupTime"),
+                        "FixedOffset":              route.get("FixedOffset"),
+                        "IsPrimaryConstraint":      route.get("IsPrimaryConstraint"),
+                        "OperationSequenceNumber":  route.get("OperationSequenceNumber"),
+                        "ParallelOperationResourceCount": route.get("ParallelOperationResourceCount"),
+                        # routing assignment fields
+                        "PartNumber":                       a.get("Title"),
+                        "Family":                           a.get("field_4"),
+                        "IsDisabled":                       a.get("field_3"),
+                        "IsDefault":                        a.get("field_6"),
+                    })
+
+            # Reformat the SharePoint list response for the Intuiflow API
+            self._routings = {
+                "Data": routing_assignments, 
+                "Mode": "Replace", 
+                "RecordCount": len(routing_assignments)
+            }
+
+            self.log.log("Get Routings", f"Successfully parsed and saved SharePoint routings.")
+
+            csv_export(routing_assignments, f"routing_item.csv", 
+                        "C:/Users/twenger/OneDrive - X Factor Machine/Tre Wenger/1. System Architecture and Projects/INTERNAL_SERVICES_V2/API_Service_Network/Intuiflow/outputs")
+
+        except Exception as e:
+            self.log.log("Get Routings", f"Failed to connect to sharepoint and parse the routings lists: {e}")
+            raise
 
     def _get_closed_work_orders(self) -> None:
         """ Get closed orders from intuiflow to exclude them in the supply order query. """
@@ -159,7 +316,7 @@ class UploadFbFiles:
             )
 
             self._demand_history = _run("DemandArchive",   self._sql_demand_history, "Update")
-            self._part           = _run("Part",            self._sql_part,           "Update")
+            self._part           = _run("Part",            self._sql_part,           "Replace")
             self._bom            = _run("BillOfMaterials", self._sql_bom,            "Replace")
             self._supply_order   = _run("SupplyOrder",     self._sql_supply_order,   "Replace")
             self._demand_order   = _run("DemandOrder",     self._sql_demand_order,   "Replace")
@@ -327,22 +484,32 @@ class UploadFbFiles:
         """Queries Fishbowl for all file data, then uploads each to Intuiflow. Returns the session log."""
         try:
             self._get_closed_work_orders()
+
             # query Fishbowl for all six file datasets in a single session
             self._query_fishbowl()
+
+            # query sharepoint for the routing and resource files
+            self._get_resources()
+            self._get_routings()    # must be ran after _get_resources
+
             # upload part alone (Mode=Update)
             if self._part:
                 self._upload_standalone("Part", self._part)
                 print("Waiting 10 seconds to ensure file is loaded.")
                 time.sleep(15)
+
             # upload demand history alone (Mode=Update)
             if self._demand_history:
                 self._upload_standalone("DemandArchive", self._demand_history)
+
             # upload BoM, supply order, demand order, and inventory as a group (Mode=Replace)
             self._upload_group([
                 ("BillOfMaterial", self._bom),
                 ("SupplyOrder",    self._supply_order),
                 ("DemandOrder",    self._demand_order),
                 ("PartInventory",  self._inventory),
+                ("Resource",      self._resource),
+                ("RoutingItem", self._routings)
             ])
         except Exception as e:
             self.log.log("Auto Run", str(e), True)

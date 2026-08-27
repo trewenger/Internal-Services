@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Routing Card — Internal Services{% endblock %}
+
+{% block content %}
+<div class="min-h-screen p-6 flex items-center justify-center">
+    <div class="max-w-lg w-full">
+        {% if status == 'config_error' %}
+        <div class="bg-white rounded-lg shadow-md p-10 text-center">
+            <div class="text-5xl mb-4">&#x2699;&#xFE0F;</div>
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">Configuration Error</h1>
+            <p class="text-gray-600 mb-4">
+                <span class="font-mono font-semibold text-gray-800">INTUIFLOW_WORKORDER_BASE_URL</span>
+                is not set on this server.
+            </p>
+            <p class="text-sm text-gray-500">
+                Add it to the <span class="font-mono">.env</span> file on RWAS01 and restart the service.
+            </p>
+        </div>
+        {% elif status == 'unknown' %}
+        <div class="bg-white rounded-lg shadow-md p-10 text-center">
+            <div class="text-5xl mb-4">&#x26A0;&#xFE0F;</div>
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">Unknown Card</h1>
+            <p class="text-gray-600 mb-4">
+                Card <span class="font-mono font-semibold text-gray-800">{{ card_id }}</span>
+                is not registered in the system.
+            </p>
+            <p class="text-sm text-gray-500">
+                If this card should be active, contact a supervisor to register it.
+            </p>
+        </div>
+        {% elif status == 'unassigned' %}
+        <div class="bg-white rounded-lg shadow-md p-10 text-center">
+            <div class="text-5xl mb-4">&#x1F4CB;</div>
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">Card Not Assigned</h1>
+            <p class="text-gray-600 mb-4">
+                Card <span class="font-mono font-semibold text-gray-800">{{ card_id }}</span>
+                is not currently assigned to a work order. Please return it so it can be reassigned.
+            </p>
+            <p class="text-sm text-gray-500">
+                Assign it to a work order from the
+                <a href="/routing-cards/assign" class="text-blue-600 hover:underline">assignment page</a>.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

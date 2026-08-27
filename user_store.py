@@ -5,21 +5,23 @@ from werkzeug.security import generate_password_hash, check_password_hash
 _CREDS_FILE = os.path.join(os.path.dirname(__file__), 'credentials.json')
 
 _DEFAULT_ACCESS = {
-    'retail':    'read',
-    'services':  'read',
-    'intuiflow': 'read',
-    'settings':  'none',
-    'promo':     'read',
-    'signage':   'read',
+    'retail':         'read',
+    'services':       'read',
+    'intuiflow':      'read',
+    'settings':       'none',
+    'promo':          'read',
+    'signage':        'read',
+    'routing-cards':  'none',
 }
 
 _ADMIN_ACCESS = {
-    'retail':    'write',
-    'services':  'write',
-    'intuiflow': 'write',
-    'settings':  'write',
-    'promo':     'write',
-    'signage':   'write',
+    'retail':         'write',
+    'services':       'write',
+    'intuiflow':      'write',
+    'settings':       'write',
+    'promo':          'write',
+    'signage':        'write',
+    'routing-cards':  'write',
 }
 
 

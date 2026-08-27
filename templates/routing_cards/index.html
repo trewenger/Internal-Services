@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}Digital Routing Card Manager — Internal Services{% endblock %}
+
+{% block content %}
+<div class="min-h-screen p-6">
+    <div class="max-w-7xl mx-auto">
+
+        {% if not can_write %}
+        <div class="bg-amber-50 border border-amber-300 text-amber-800 rounded-lg px-4 py-3 mb-4 text-sm flex items-center gap-2">
+            <span class="font-bold">Read-only access</span> — you can view this page but cannot make changes.
+        </div>
+        {% endif %}
+
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Digital Routing Card Manager</h1>
+                    <p class="text-gray-600 mt-1">Manage physical routing cards and their work order assignments</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('routing_cards.assign') }}"
+                       class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition text-sm">
+                        Assign Cards
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Register Cards -->
+        <div class="bg-white rounded-lg shadow-md mb-6">
+            <div class="p-4 border-b cursor-pointer hover:bg-gray-50 transition" onclick="toggleRegister()">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <h2 class="text-lg font-semibold text-gray-800">Register New Cards</h2>
+                        <span class="text-sm text-gray-500">(Click to expand)</span>
+                    </div>
+                    <svg id="register-arrow" class="w-5 h-5 text-gray-500 transform transition-transform"
+                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </div>
+            </div>
+            <div id="register-content" class="hidden p-6">
+                <p class="text-sm text-gray-600 mb-3">
+                    Enter one card ID per line (or comma-separated). These IDs must match what is laser-etched
+                    on the physical cards and encoded in their QR codes.
+                </p>
+                <p class="text-sm text-gray-500 mb-4">
+                    QR codes should encode:
+                    <span class="font-mono bg-gray-100 px-1 rounded">{{ card_host }}/routing-cards/c/&lt;card_id&gt;</span>
+                </p>
+                <div class="flex gap-3 items-start">
+                    <textarea id="register-input"
+                              class="flex-1 border border-gray-300 rounded-lg p-3 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+                              rows="4"
+                              placeholder="00047&#10;00048&#10;00049"
+                              {% if not can_write %}disabled{% endif %}></textarea>
+                    <div class="flex flex-col gap-2">
+                        <button onclick="registerCards()"
+                                class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition text-sm whitespace-nowrap
+                                       {% if not can_write %}opacity-50 cursor-not-allowed{% endif %}"
+                                {% if not can_write %}disabled{% endif %}>
+                            Register Cards
+                        </button>
+                    </div>
+                </div>
+                <div id="register-result" class="hidden mt-3"></div>
+            </div>
+        </div>
+
+        <!-- Assigned Card Pool Table -->
+        <div class="bg-white rounded-lg shadow-md mb-6">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-800">Assigned Card Pool
+                    <span class="text-sm font-normal text-gray-500 ml-2">{{ assigned_cards | length }} card{{ 's' if assigned_cards | length != 1 else '' }}</span>
+                </h2>
+                <button onclick="refreshCards()" class="text-blue-600 hover:underline text-sm font-semibold">Refresh</button>
+            </div>
+
+            {% if assigned_cards %}
+            <div class="overflow-x-auto">
+                <table class="w-full" id="assigned-cards-table">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Card ID</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Assignment</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Batch</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered</th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100" id="assigned-cards-tbody">
+                        {% for c in assigned_cards %}
+                        <tr class="hover:bg-gray-50 cursor-pointer" onclick="toggleCardQR('{{ c.card_id }}')">
+                            <td class="px-4 py-3 font-mono text-sm font-semibold text-gray-800">{{ c.card_id }}</td>
+                            <td class="px-4 py-3">
+                                <span class="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">Active</span>
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-700">
+                                <span class="font-mono">{{ c.assignment.order_number }}</span>
+                                <span class="text-gray-400 mx-1">·</span>
+                                <span class="text-gray-500 text-xs">{{ c.assignment.part_number }}</span>
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-700">
+                                {{ c.assignment.batch_number }}
+                                {% if c.assignment.is_last_batch %}
+                                <span class="ml-1 bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full">Last</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-500 font-mono">{{ c.created_at[:10] }}</td>
+                            <td class="px-4 py-3" onclick="event.stopPropagation()">
+                                {% if can_write %}
+                                <button
+                                    onclick="unassignCard('{{ c.card_id }}', '{{ c.assignment.order_number }}')"
+                                    class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded transition text-xs">
+                                    Unassign
+                                </button>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-right w-8">
+                                <svg id="chevron-{{ c.card_id }}" class="w-4 h-4 text-gray-400 inline-block transition-transform duration-200"
+                                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </td>
+                        </tr>
+                        <tr id="qr-row-{{ c.card_id }}" class="hidden bg-gray-50">
+                            <td colspan="7" class="px-6 py-5">
+                                <div class="flex items-center gap-6">
+                                    <div id="qr-{{ c.card_id }}"
+                                         data-url="{{ card_host }}/routing-cards/c/{{ c.card_id }}"
+                                         data-qr-rendered="false"></div>
+                                    <div>
+                                        <p class="text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">Scan URL</p>
+                                        <p class="font-mono text-sm text-gray-800">{{ card_host }}/routing-cards/c/{{ c.card_id }}</p>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-10 text-center text-gray-500">
+                <p class="text-lg font-semibold mb-1">No cards assigned</p>
+                <p class="text-sm">Use the "Assign Cards" button above to assign cards from the unassigned pool.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Unassigned Card Pool Table -->
+        <div class="bg-white rounded-lg shadow-md mb-6">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-gray-800">Unassigned Card Pool
+                    <span class="text-sm font-normal text-gray-500 ml-2">{{ unassigned_cards | length }} card{{ 's' if unassigned_cards | length != 1 else '' }}</span>
+                </h2>
+                <button onclick="refreshCards()" class="text-blue-600 hover:underline text-sm font-semibold">Refresh</button>
+            </div>
+
+            {% if unassigned_cards %}
+            <div class="overflow-x-auto">
+                <table class="w-full" id="unassigned-cards-table">
+                    <thead class="bg-gray-50 border-b">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Card ID</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Assignment</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Batch</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered</th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100" id="unassigned-cards-tbody">
+                        {% for c in unassigned_cards %}
+                        <tr class="hover:bg-gray-50 cursor-pointer" onclick="toggleCardQR('{{ c.card_id }}')">
+                            <td class="px-4 py-3 font-mono text-sm font-semibold text-gray-800">{{ c.card_id }}</td>
+                            <td class="px-4 py-3">
+                                <span class="bg-gray-100 text-gray-600 text-xs font-bold px-3 py-1 rounded-full">In Pool</span>
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-400">—</td>
+                            <td class="px-4 py-3 text-sm text-gray-400">—</td>
+                            <td class="px-4 py-3 text-sm text-gray-500 font-mono">{{ c.created_at[:10] }}</td>
+                            <td></td>
+                            <td class="px-4 py-3 text-right w-8">
+                                <svg id="chevron-{{ c.card_id }}" class="w-4 h-4 text-gray-400 inline-block transition-transform duration-200"
+                                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </td>
+                        </tr>
+                        <tr id="qr-row-{{ c.card_id }}" class="hidden bg-gray-50">
+                            <td colspan="7" class="px-6 py-5">
+                                <div class="flex items-center gap-6">
+                                    <div id="qr-{{ c.card_id }}"
+                                         data-url="{{ card_host }}/routing-cards/c/{{ c.card_id }}"
+                                         data-qr-rendered="false"></div>
+                                    <div>
+                                        <p class="text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">Scan URL</p>
+                                        <p class="font-mono text-sm text-gray-800">{{ card_host }}/routing-cards/c/{{ c.card_id }}</p>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-10 text-center text-gray-500">
+                <p class="text-lg font-semibold mb-1">No cards registered</p>
+                <p class="text-sm">Use the "Register New Cards" panel above to add cards to the pool.</p>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+window.ROUTING_CARDS_CONFIG = {
+    can_write: {{ 'true' if can_write else 'false' }},
+};
+setTimeout(() => location.reload(), 10 * 60 * 1000);
+</script>
+<script src="{{ url_for('static', filename='js/routing_cards.js') }}"></script>
+{% endblock %}

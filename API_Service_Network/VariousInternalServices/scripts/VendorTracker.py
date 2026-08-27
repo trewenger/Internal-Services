@@ -29,6 +29,16 @@ SS = None
 TODAY = None
 LOG = None
 WIP_NAMES_FLAG = 0
+INGORED_PARTS = [
+    "SVC000021",
+    "SVC000027",
+    "SVC000527",
+    "SVC000522",
+    "SVC000566",
+    "SVC000567",
+    "SVC000563",
+    "SVC000564"
+]
 # ---------------------------- Functions ------------------------------ #
 
 # Get Fishbowl Data 
@@ -81,6 +91,7 @@ def _check_name_exists(qty_at_vendor) -> None:
         LOG.log("check_name_exists", "Failed to check for missing WIP names. Nothing was updated or changed. " \
         "Ending the API call stack. ")
 
+
 def _check_name_is_valid(qty_at_vendor, name_range, sheet_name):
     """
     Checks that the custom field wip names in the FB data exists as a real name in the WIP.
@@ -92,7 +103,7 @@ def _check_name_is_valid(qty_at_vendor, name_range, sheet_name):
         # Reformatting google range read to a list of values instead of 2D list.
         LOG.log("check_name_is_valid", "Starting check to see if FB WIP names are present in the WIP Tracker. ")
         print(sheet_name, name_range)
-        wip_names_read = SS.read_range("Import", "Q2:Q")
+        wip_names_read = SS.read_range("This Week", "Q2:Q")
         wip_names = []
         for arr in wip_names_read:
             if arr[0] and arr:
@@ -123,6 +134,37 @@ def _check_name_is_valid(qty_at_vendor, name_range, sheet_name):
         LOG.log("check_name_is_valid", e, True)
         LOG.log("check_name_is_valid", "Failed to check for unmatched WIP names. Nothing was updated or changed. " \
         "Ending the API call stack. ")
+
+def _archive_weeks():
+    """
+    Rotates the current week to 1 week ago, then 1 week ago to 2 weeks ago.
+    """
+    try:
+        # current sheet data to rotate
+        this_week = SS.read_range("This Week", "A3:D")
+        one_week_ago = SS.read_range("1 Week Ago", "A3:D")
+        LOG.log("archive_weeks", "Successfully read the rotating sheets data. ")
+
+        # clear the previous weeks sheet data
+        SS.clear_range("1 Week Ago", "A3:D")
+        SS.clear_range("2 Weeks Ago", "A3:D")
+        LOG.log("archive_weeks", "Successfully cleared the rotating sheets data. ")
+
+        # actually rotate the values
+        SS.update_range("1 Week Ago", "A3:D", this_week)
+        SS.update_range("2 Weeks Ago", "A3:D", one_week_ago)
+        LOG.log("archive_weeks", "Successfully rotated previous weeks vendor data. ")
+
+        # Updating 'last updated' date. 
+        SS.clear_range("1 Week Ago", "E3:E3")
+        SS.update_range("1 Week Ago", "E3:E3", [[str(TODAY)]])
+        SS.clear_range("2 Weeks Ago", "E3:E3")
+        SS.update_range("2 Weeks Ago", "E3:E3", [[str(TODAY)]])
+        LOG.log("paste_data", "Successfully updated 'last updated' date cell to todays date on archive sheets. ")
+
+    except Exception as e:
+        LOG.log("archive_weeks", f"Failed to rotate previous weeks: {e}", True)
+
 
 # Paste FB data into Sheet
 def _paste_data(qty_at_vendor, column_order, sheet_name, paste_range, date_cell) -> None:
@@ -189,7 +231,7 @@ def _summary_email(email_rec_list) -> None:
 
 #---------------------------- Main -------------------------------------#
 
-def vendor_tracker(result_recipients:list[str], notification_mode:str="none", column_order:list[str]=[], sheet_name:str='Import', 
+def vendor_tracker(result_recipients:list[str], notification_mode:str="none", column_order:list[str]=[], sheet_name:str='This Week', 
                    query_name:str="VendorTracker", paste_range:str="A3:D", last_updated_cell:str="E3:E3", wip_name_range:str="Q2:Q"):
     """
     This function performs the update of the vendor tracker Google Sheet. This script requires a env
@@ -244,6 +286,9 @@ def vendor_tracker(result_recipients:list[str], notification_mode:str="none", co
     # Validate the entered Fishbowl CF values 
     if LOG.error_flag() == 0:
         _check_name_is_valid(qty_at_vendor, wip_name_range, sheet_name)
+
+    if LOG.error_flag() == 0:
+        _archive_weeks()
 
     # Update the Google Sheet data
     if LOG.error_flag() == 0:
