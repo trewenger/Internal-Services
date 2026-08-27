@@ -348,7 +348,7 @@ class UpdateWorkOrders:
                         bom_match_count += 1
                     else:
                         self.log.log("Get BOM Info (Fishbowl)", 
-                                     f"Warning: No BomId found for BoM name: '{bom_name}' (order {order['OrderNum']}). This field won't be updated.", True)
+                                     f"Warning: No BomId found for BoM name: '{bom_name}' (order {order['OrderNum']}). This field won't be updated.")
                         
             self.log.log("Get BOM Info (Fishbowl)", f"Successfully processed BoM IDs for {bom_match_count} of {len(self._open_wos)} work orders.")
         except Exception as e:
