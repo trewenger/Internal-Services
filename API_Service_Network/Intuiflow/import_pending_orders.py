@@ -319,7 +319,7 @@ class ImportPendingOrders:
 
                 enriched = []
                 for wo in self._work_orders:
-                    if wo.get("BomName"):
+                    if wo.get("BomName") and wo.get("BomName") != "Default":            # Intuiflow Bug Batch: If approving an order with a custom request date, BoM name changes from None to "Default". Should still be treated as None as there are no BoMs in Fishbowl called "Default".
                         # a specific BoM was selected in Intuiflow — match by BomNumber
                         matched = next((b for b in bom_rows if str(b.get("BomNumber")) == str(wo["BomName"])), None)
                     else:
