@@ -7,7 +7,8 @@ from common.Clients.Intuiflow.IntuiflowApi import (
 )
 from common.Utils.Logging import SessionLog
 from common.Utils.Utils import load_query, csv_export
-import time 
+from API_Service_Network.Intuiflow.data import IntuiflowConfig
+import time
 from datetime import datetime, timedelta
 from pprint import pprint
 
@@ -17,8 +18,14 @@ class UploadFbFiles:
     """Queries Fishbowl for demand history, part, BoM, supply order, demand order, and
     inventory data, then uploads each file to Intuiflow via its import API.
 
-    Demand history and part files are uploaded individually (Mode=Update).
-    BoM, supply order, demand order, and inventory are uploaded as a single group (Mode=Replace).
+    Part always uploads first, alone, as a standalone import. The remaining 7 files
+    (DemandArchive, BillOfMaterial, SupplyOrder, DemandOrder, PartInventory, Resource,
+    RoutingItem) are then partitioned by Mode (Update/Replace) into up to 2 group imports,
+    since Intuiflow's import API only accepts one Mode per import. Part's mode and the 6
+    Fishbowl/SharePoint group files' modes are user-configurable via intuiflow_config.json's
+    "upload-file-types" entry. DemandArchive's mode is hardcoded to "Update" and is never
+    configurable — uploading demand history with Mode=Replace would wipe Intuiflow's
+    accumulated demand history.
     """
 
     def __init__(self):
@@ -29,6 +36,10 @@ class UploadFbFiles:
         self._is_fb_test_db     = Config.USE_TEST_DB
         self._closed_wo_nums        = ["000000"]    # place holder value so the query always has something
         self._resource_lookup       = None          # used for resource lookup by ID in the get_routings function
+        # per-file upload Mode, from config. DemandArchive is forced to "Update" right after
+        # loading — it must never be configurable (Mode=Replace would wipe demand history).
+        self._upload_modes = IntuiflowConfig().get('upload-file-types')
+        self._upload_modes['DemandArchive'] = 'Update'
         # SQL queries loaded once at init
         self._sql_demand_history = load_query("DemandHistory")
         self._sql_part           = load_query("Part")
@@ -92,8 +103,8 @@ class UploadFbFiles:
 
             # Reformat the SharePoint list response for the Intuiflow API
             self._resource = {
-                "Data": parsed_resources, 
-                "Mode": "Replace", 
+                "Data": parsed_resources,
+                "Mode": self._upload_modes['Resource'],
                 "RecordCount": len(parsed_resources)
             }
 
@@ -184,8 +195,8 @@ class UploadFbFiles:
 
             # Reformat the SharePoint list response for the Intuiflow API
             self._routings = {
-                "Data": routing_assignments, 
-                "Mode": "Replace", 
+                "Data": routing_assignments,
+                "Mode": self._upload_modes['RoutingItem'],
                 "RecordCount": len(routing_assignments)
             }
 
@@ -315,12 +326,14 @@ class UploadFbFiles:
                 nums_sql
             )
 
+            # DemandArchive's mode is intentionally the literal "Update", not a config lookup —
+            # it is hardcoded and must never be configurable (see class docstring).
             self._demand_history = _run("DemandArchive",   self._sql_demand_history, "Update")
-            self._part           = _run("Part",            self._sql_part,           "Replace")
-            self._bom            = _run("BillOfMaterials", self._sql_bom,            "Replace")
-            self._supply_order   = _run("SupplyOrder",     self._sql_supply_order,   "Replace")
-            self._demand_order   = _run("DemandOrder",     self._sql_demand_order,   "Replace")
-            self._inventory      = _run("Inventory",       self._sql_inventory,      "Replace")
+            self._part           = _run("Part",            self._sql_part,           self._upload_modes['Part'])
+            self._bom            = _run("BillOfMaterials", self._sql_bom,            self._upload_modes['BillOfMaterial'])
+            self._supply_order   = _run("SupplyOrder",     self._sql_supply_order,   self._upload_modes['SupplyOrder'])
+            self._demand_order   = _run("DemandOrder",     self._sql_demand_order,   self._upload_modes['DemandOrder'])
+            self._inventory      = _run("Inventory",       self._sql_inventory,      self._upload_modes['PartInventory'])
 
             files_with_records = sum(1 for f in [
                 self._demand_history, self._part, self._bom,
@@ -405,24 +418,27 @@ class UploadFbFiles:
                                  f"Failed to delete failed import with ID {import_id}: {de}", True)
                     raise
 
-    def _upload_group(self, files: list[tuple[str, dict | None]]) -> None:
-        """Uploads multiple files as a single grouped import. All files share one import ID
-        and are validated together. Files with None data (0 records from Fishbowl) are skipped.
+    def _upload_group(self, files: list[tuple[str, dict | None]], mode: str) -> None:
+        """Uploads multiple files as a single grouped import, all sharing one Mode. All files
+        share one import ID and are validated together. Files with None data (0 records from
+        Fishbowl) are skipped.
 
         files: list of (file_name, file_data) tuples where file_data is
                {"Data": [...], "Mode": "...", "RecordCount": N} or None if the query returned 0 records.
+        mode: "Update" or "Replace" — applied to the whole import (Intuiflow's API accepts only
+              one Mode per import, not per file), so callers must pre-partition files by mode.
         Errors are logged but the exception is swallowed — group failures are non-fatal. """
         files = [(t, f) for (t, f) in files if f is not None]
         if not files:
-            self.log.log("Upload Group", "No group files have records. Skipping group upload.")
+            self.log.log("Upload Group", f"No {mode} group files have records. Skipping group upload.")
             return
 
         import_id = None
         upload_type = None
         all_file_names = [i[0] for i in files]
         try:
-            # --------------- create import (group always uses Replace) ---------------
-            upload_type = "Replace"
+            # --------------- create import ---------------
+            upload_type = mode
             resp = create_import(upload_type, is_test_environment=self._is_intuiflow_test)
             import_id = (resp.get("data") or {}).get("Id")
             if import_id is None:
@@ -492,25 +508,29 @@ class UploadFbFiles:
             self._get_resources()
             self._get_routings()    # must be ran after _get_resources
 
-            # upload part alone (Mode=Update)
+            # upload part alone, always first
             if self._part:
                 self._upload_standalone("Part", self._part)
                 print("Waiting 10 seconds to ensure file is loaded.")
                 time.sleep(15)
 
-            # upload demand history alone (Mode=Update)
-            if self._demand_history:
-                self._upload_standalone("DemandArchive", self._demand_history)
-
-            # upload BoM, supply order, demand order, and inventory as a group (Mode=Replace)
-            self._upload_group([
+            # partition the remaining 7 files into up to 2 group imports by Mode, since
+            # Intuiflow's import API accepts only one Mode per import. DemandArchive always
+            # lands in the Update group (its mode is hardcoded, never configurable).
+            remaining_files = [
+                ("DemandArchive",  self._demand_history),
                 ("BillOfMaterial", self._bom),
                 ("SupplyOrder",    self._supply_order),
                 ("DemandOrder",    self._demand_order),
                 ("PartInventory",  self._inventory),
-                ("Resource",      self._resource),
-                ("RoutingItem", self._routings)
-            ])
+                ("Resource",       self._resource),
+                ("RoutingItem",    self._routings),
+            ]
+            update_group  = [(name, data) for name, data in remaining_files if self._upload_modes[name] == 'Update']
+            replace_group = [(name, data) for name, data in remaining_files if self._upload_modes[name] == 'Replace']
+
+            self._upload_group(update_group,  "Update")
+            self._upload_group(replace_group, "Replace")
         except Exception as e:
             self.log.log("Auto Run", str(e), True)
         finally:

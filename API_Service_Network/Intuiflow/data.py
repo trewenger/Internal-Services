@@ -44,6 +44,18 @@ _DEFAULT_MODULE_CONFIG_SHORT_INV = {
     'def_locations_notify_recipients':      [],
 }
 
+_DEFAULT_UPLOAD_FILE_TYPES = {
+    # DemandArchive is intentionally excluded — its Mode is hardcoded to 'Update' in
+    # upload_fb_files.py and is never configurable (Mode=Replace would wipe demand history).
+    'Part':           'Replace',
+    'BillOfMaterial': 'Replace',
+    'SupplyOrder':    'Replace',
+    'DemandOrder':    'Replace',
+    'PartInventory':  'Replace',
+    'Resource':       'Replace',
+    'RoutingItem':    'Replace',
+}
+
 _DEFAULT_CONFIG = {
     'full-sync':             {'label': 'Full Sync',             **copy.deepcopy(_DEFAULT_PIPELINE_CONFIG)},
     'partial-sync':          {'label': 'Partial Sync',          **copy.deepcopy(_DEFAULT_PIPELINE_CONFIG)},
@@ -51,6 +63,7 @@ _DEFAULT_CONFIG = {
     'update-work-orders':    {'label': 'Update Work Orders',    **copy.deepcopy(_DEFAULT_MODULE_CONFIG)},
     'close-work-orders':     {'label': 'Close Work Orders',     **copy.deepcopy(_DEFAULT_MODULE_CONFIG_SHORT_INV)},
     'import-pending-orders': {'label': 'Import Pending Orders', **copy.deepcopy(_DEFAULT_MODULE_CONFIG)},
+    'upload-file-types':     copy.deepcopy(_DEFAULT_UPLOAD_FILE_TYPES),
 }
 
 _DEFAULT_ENTRY_LOG = {
@@ -68,6 +81,9 @@ _DEFAULT_ENTRY_LOG = {
 
 class IntuiflowConfig:
     """Manages per-pipeline/module schedule, enable, and notification config."""
+
+    VALID_UPLOAD_MODES = {'Update', 'Replace'}
+    UPLOAD_FILE_KEYS    = set(_DEFAULT_UPLOAD_FILE_TYPES)
 
     def __init__(self):
         self.filepath = os.path.join(_DIR, 'intuiflow_config.json')
@@ -95,6 +111,13 @@ class IntuiflowConfig:
                         data = json.load(f)
                     # Backfill missing fields and drop stale ones using _DEFAULT_CONFIG as authority.
                     changed = False
+                    # Add any brand-new top-level entries (e.g. added in a later release) that
+                    # aren't in the file yet at all — the per-field backfill below only touches
+                    # entries that already exist in `data`.
+                    for key, default in _DEFAULT_CONFIG.items():
+                        if key not in data:
+                            data[key] = copy.deepcopy(default)
+                            changed = True
                     for key, entry in data.items():
                         default = _DEFAULT_CONFIG.get(key)
                         if default is None:

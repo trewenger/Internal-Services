@@ -29,12 +29,13 @@
                 <a href="#overview" class="hover:underline">1. System Overview</a>
                 <a href="#pipelines" class="hover:underline">2. Sync Pipelines</a>
                 <a href="#modules" class="hover:underline">3. Individual Modules</a>
-                <a href="#running" class="hover:underline">4. Running a Pipeline or Module</a>
-                <a href="#scheduling" class="hover:underline">5. Scheduling</a>
-                <a href="#notifications" class="hover:underline">6. Notifications</a>
-                <a href="#short-inventory" class="hover:underline">7. Short Inventory Alerts</a>
-                <a href="#default-location" class="hover:underline">8. Invalid Default Location Alerts</a>
-                <a href="#logs" class="hover:underline">9. Logs &amp; Run History</a>
+                <a href="#upload-file-settings" class="hover:underline">4. Upload File Settings</a>
+                <a href="#running" class="hover:underline">5. Running a Pipeline or Module</a>
+                <a href="#scheduling" class="hover:underline">6. Scheduling</a>
+                <a href="#notifications" class="hover:underline">7. Notifications</a>
+                <a href="#short-inventory" class="hover:underline">8. Short Inventory Alerts</a>
+                <a href="#default-location" class="hover:underline">9. Invalid Default Location Alerts</a>
+                <a href="#logs" class="hover:underline">10. Logs &amp; Run History</a>
             </div>
         </div>
 
@@ -156,18 +157,74 @@
                 <div class="border rounded-lg p-4">
                     <h3 class="text-lg font-semibold text-blue-600 mb-1">Upload FB Files</h3>
                     <p class="text-gray-700">
-                        Queries Fishbowl for six datasets — demand history, parts, bill of materials, supply
-                        orders, demand orders, and inventory — and uploads each one to Intuiflow via its
-                        import API. This gives Intuiflow the data it needs to generate an accurate production
-                        schedule.
+                        Queries Fishbowl (and SharePoint, for resources and routings) for eight datasets —
+                        part, demand archive, bill of materials, supply orders, demand orders, inventory,
+                        resource, and routing item — and uploads each one to Intuiflow via its import API.
+                        This gives Intuiflow the data it needs to generate an accurate production schedule.
+                        Part always uploads first by itself; the rest are grouped and sent according to the
+                        <a href="#upload-file-settings" class="text-blue-600 hover:underline">Upload File Settings</a>
+                        below.
                     </p>
                 </div>
             </div>
         </div>
 
-        <!-- 4. Running a Pipeline or Module -->
+        <!-- 4. Upload File Settings -->
+        <div id="upload-file-settings" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">4. Upload File Settings</h2>
+            <p class="text-gray-700 mb-4">
+                Each file the Upload FB Files module sends to Intuiflow can be uploaded in one of two
+                modes. This setting lives in its own card at the top of the dashboard, above
+                <span class="font-semibold">Sync Pipelines</span>, because it is shared by both
+                <span class="font-semibold">Full Sync</span> and the standalone
+                <span class="font-semibold">Upload FB Files</span> module — there is only one setting per
+                file, not a separate copy per card.
+            </p>
+
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Update vs. Replace:</h3>
+                <ul class="space-y-2">
+                    <li class="flex items-start gap-2">
+                        <span class="font-semibold text-gray-700 w-24 shrink-0">Update</span>
+                        <span class="text-gray-700">Adds to or updates existing records in Intuiflow without removing anything not included in the upload.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="font-semibold text-gray-700 w-24 shrink-0">Replace</span>
+                        <span class="text-gray-700">Wipes out whatever Intuiflow currently has for that file and replaces it entirely with the newly uploaded data.</span>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="bg-gray-50 border rounded p-4 mb-4">
+                <h3 class="font-semibold text-gray-800 mb-2">How to change a file's upload mode:</h3>
+                <div class="space-y-2">
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+                        <p class="text-gray-700">Click the <span class="font-semibold">Upload File Settings</span> card at the top of the dashboard to expand it.</p>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+                        <p class="text-gray-700">Pick <span class="font-semibold">Update</span> or <span class="font-semibold">Replace</span> from the dropdown next to the file you want to change.</p>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+                        <p class="text-gray-700">Click <span class="font-semibold">Save Upload Settings</span>. The new mode takes effect on the next run — either Full Sync or Upload FB Files.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-orange-50 border border-orange-200 rounded p-4">
+                <span class="font-semibold">Important:</span> <span class="font-semibold">Demand Archive</span>
+                is always uploaded as <span class="font-semibold">Update</span> and cannot be changed —
+                it has no dropdown, only a locked "Update" badge. Uploading demand history as Replace would
+                wipe out Intuiflow's accumulated demand history, so this is fixed in the system and is not
+                an available option.
+            </div>
+        </div>
+
+        <!-- 5. Running a Pipeline or Module -->
         <div id="running" class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">4. Running a Pipeline or Module</h2>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">5. Running a Pipeline or Module</h2>
             <p class="text-gray-700 mb-4">
                 Every card on the dashboard has a <span class="font-semibold text-green-600">▶ Run Now</span>
                 button. Clicking it starts that pipeline or module immediately, regardless of any schedule.
@@ -195,9 +252,9 @@
             </div>
         </div>
 
-        <!-- 5. Scheduling -->
+        <!-- 6. Scheduling -->
         <div id="scheduling" class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">5. Scheduling</h2>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">6. Scheduling</h2>
             <p class="text-gray-700 mb-4">
                 Only the two pipelines (Full Sync and Partial Sync) can be scheduled. Individual modules
                 are run on demand only. To configure a schedule, click a pipeline card to expand it, then
@@ -234,9 +291,9 @@
             </div>
         </div>
 
-        <!-- 6. Notifications -->
+        <!-- 7. Notifications -->
         <div id="notifications" class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">6. Notifications</h2>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">7. Notifications</h2>
             <p class="text-gray-700 mb-4">
                 Every pipeline and individual module has its own notification settings, configured
                 independently. Click any card to expand it, then click the <span class="font-semibold">Notifications</span>
@@ -278,9 +335,9 @@
             </div>
         </div>
 
-        <!-- 7. Short Inventory Alerts -->
+        <!-- 8. Short Inventory Alerts -->
         <div id="short-inventory" class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">7. Short Inventory Alerts</h2>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">8. Short Inventory Alerts</h2>
             <p class="text-gray-700 mb-4">
                 When the Close Work Orders step runs — either as part of a pipeline or on its own — it
                 checks whether there is enough inventory on hand to cycle each work order. If a work order
@@ -318,9 +375,9 @@
             </div>
         </div>
 
-        <!-- 8. Invalid Default Location Alerts -->
+        <!-- 9. Invalid Default Location Alerts -->
         <div id="default-location" class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">8. Invalid Default Location Alerts</h2>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">9. Invalid Default Location Alerts</h2>
             <p class="text-gray-700 mb-4">
                 When the Close Work Orders step runs — either as part of a pipeline or on its own — it
                 checks whether each part on every work order has a valid default location set in Fishbowl.
@@ -359,9 +416,9 @@
             </div>
         </div>
 
-        <!-- 9. Logs & Run History -->
+        <!-- 10. Logs & Run History -->
         <div id="logs" class="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">9. Logs &amp; Run History</h2>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">10. Logs &amp; Run History</h2>
             <p class="text-gray-700 mb-4">
                 Every pipeline and module keeps its own run history. Click a card to expand it, then click
                 the <span class="font-semibold">Logs</span> tab. Two panels are shown:

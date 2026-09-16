@@ -40,6 +40,40 @@ function toggleCard(name) {
     }
 }
 
+// --------------------------------- Upload File Settings card ------------------------ //
+
+let _uploadTypesCardOpen = false;
+
+function toggleUploadTypesCard() {
+    const body    = document.getElementById('card-body-upload-file-types');
+    const chevron = document.getElementById('chevron-upload-file-types');
+    _uploadTypesCardOpen = !_uploadTypesCardOpen;
+    body.classList.toggle('hidden', !_uploadTypesCardOpen);
+    chevron.classList.toggle('rotate-180', _uploadTypesCardOpen);
+}
+
+function saveUploadFileTypes() {
+    const selects = document.querySelectorAll('#card-body-upload-file-types select[data-file-key]');
+    const payload = {};
+    selects.forEach(sel => { payload[sel.dataset.fileKey] = sel.value; });
+
+    fetch('/intuiflow/upload-file-types', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    })
+    .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+    .then(({ ok, data }) => {
+        if (ok && data.success) {
+            window.INTUIFLOW_CONFIG['upload-file-types'] = data.config;
+            showNotification('Upload file settings saved', 'success');
+        } else {
+            showNotification(data.error || 'Failed to save', 'error');
+        }
+    })
+    .catch(() => showNotification('Network error', 'error'));
+}
+
 // --------------------------------- Tab switching ------------------------------------ //
 
 function switchTab(name, tab) {
