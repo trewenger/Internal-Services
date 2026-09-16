@@ -688,6 +688,8 @@ def run_now(name):
 def get_status():
     config = intuiflow_config.get_all()
     for name, cfg in config.items():
+        if name == 'upload-file-types':
+            continue  # not a runnable pipeline/module — no running/next_run state
         if name in _PIPELINE_NAMES:
             job = scheduler.get_job(f'job_intuiflow_{name}')
             cfg['next_run'] = job.next_run_time.isoformat() if job and job.next_run_time else None
@@ -780,4 +782,25 @@ def update_config(name):
 
     except Exception as e:
         logger.error(f'Error updating config for {name}: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@intuiflow_bp.route('/upload-file-types', methods=['PUT'])
+@login_required
+def update_upload_file_types():
+    try:
+        req_data = request.get_json() or {}
+        updates  = {}
+        for key, mode in req_data.items():
+            if key not in IntuiflowConfig.UPLOAD_FILE_KEYS:
+                return jsonify({'error': f'Unknown or non-configurable file type: {key}'}), 400
+            if mode not in IntuiflowConfig.VALID_UPLOAD_MODES:
+                return jsonify({'error': f'Invalid mode for {key}: {mode}'}), 400
+            updates[key] = mode
+
+        updated = intuiflow_config.update('upload-file-types', updates)
+        return jsonify({'success': True, 'config': updated})
+
+    except Exception as e:
+        logger.error(f'Error updating upload file types: {e}')
         return jsonify({'error': str(e)}), 500

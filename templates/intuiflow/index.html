@@ -480,6 +480,62 @@
             </div>
         </div>
 
+        <!-- ===== Upload File Settings ===== -->
+        {% set upload_types = config['upload-file-types'] %}
+        {% set UPLOAD_TYPE_LABELS = [
+            ('Part',           'Part'),
+            ('BillOfMaterial', 'Bill of Materials'),
+            ('SupplyOrder',    'Supply Order'),
+            ('DemandOrder',    'Demand Order'),
+            ('PartInventory',  'Inventory'),
+            ('Resource',       'Resource'),
+            ('RoutingItem',    'Routing Item'),
+        ] %}
+        <div class="bg-white rounded-lg shadow-md mb-6" id="card-upload-file-types">
+            <div class="p-5 cursor-pointer hover:bg-gray-50 transition select-none"
+                 onclick="toggleUploadTypesCard()">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1 min-w-0">
+                        <h2 class="text-lg font-bold text-gray-800">Upload File Settings</h2>
+                        <p class="text-sm text-gray-500 mt-1">
+                            Choose Update or Replace for each file uploaded to Intuiflow.
+                            Used by both <strong>Full Sync</strong> and <strong>Upload FB Files</strong>.
+                        </p>
+                    </div>
+                    <svg id="chevron-upload-file-types"
+                         class="w-5 h-5 text-gray-400 transition-transform duration-200 pointer-events-none shrink-0"
+                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </div>
+            </div>
+            <div id="card-body-upload-file-types" class="hidden border-t p-5">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                    {% for key, label in UPLOAD_TYPE_LABELS %}
+                    <div class="flex items-center justify-between gap-3 border rounded-lg px-4 py-3 bg-gray-50">
+                        <label for="upload-type-{{ key }}" class="text-sm font-semibold text-gray-700">{{ label }}</label>
+                        <select id="upload-type-{{ key }}" data-file-key="{{ key }}"
+                                class="border rounded py-1.5 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="Update" {{ 'selected' if upload_types[key] == 'Update' }}>Update</option>
+                            <option value="Replace" {{ 'selected' if upload_types[key] == 'Replace' }}>Replace</option>
+                        </select>
+                    </div>
+                    {% endfor %}
+                    <div class="flex items-center justify-between gap-3 border rounded-lg px-4 py-3 bg-gray-100">
+                        <div>
+                            <label class="text-sm font-semibold text-gray-700">Demand Archive</label>
+                            <p class="text-xs text-gray-500">Always Update — cannot be changed.</p>
+                        </div>
+                        <span class="bg-gray-200 text-gray-600 text-xs font-bold px-3 py-1.5 rounded">Update</span>
+                    </div>
+                </div>
+                <button onclick="saveUploadFileTypes()"
+                        class="bg-blue-500 hover:bg-blue-700 text-white text-sm font-bold py-2 px-4 rounded transition">
+                    Save Upload Settings
+                </button>
+            </div>
+        </div>
+
         <!-- ===== Section 1: Pipelines ===== -->
         <div class="mb-2">
             <div class="flex items-center gap-3 mb-4 pl-2">
