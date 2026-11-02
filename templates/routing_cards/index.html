@@ -72,11 +72,17 @@
 
         <!-- Assigned Card Pool Table -->
         <div class="bg-white rounded-lg shadow-md mb-6">
-            <div class="p-4 border-b flex justify-between items-center">
+            <div class="p-4 border-b flex justify-between items-center gap-4">
                 <h2 class="text-lg font-semibold text-gray-800">Assigned Card Pool
                     <span class="text-sm font-normal text-gray-500 ml-2">{{ assigned_cards | length }} card{{ 's' if assigned_cards | length != 1 else '' }}</span>
                 </h2>
-                <button onclick="refreshCards()" class="text-blue-600 hover:underline text-sm font-semibold">Refresh</button>
+                <div class="flex items-center gap-3">
+                    <input type="text" id="assigned-search"
+                           oninput="filterCardTable('assigned-search', 'assigned-cards-tbody', 'assigned-empty-search')"
+                           placeholder="Search cards..."
+                           class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <button onclick="refreshCards()" class="text-blue-600 hover:underline text-sm font-semibold">Refresh</button>
+                </div>
             </div>
 
             {% if assigned_cards %}
@@ -95,7 +101,10 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100" id="assigned-cards-tbody">
                         {% for c in assigned_cards %}
-                        <tr class="hover:bg-gray-50 cursor-pointer" onclick="toggleCardQR('{{ c.card_id }}')">
+                        <tr class="hover:bg-gray-50 cursor-pointer card-row"
+                            data-card-id="{{ c.card_id }}"
+                            data-search="{{ c.card_id }} {{ c.assignment.order_number }} {{ c.assignment.part_number }}"
+                            onclick="toggleCardQR('{{ c.card_id }}')">
                             <td class="px-4 py-3 font-mono text-sm font-semibold text-gray-800">{{ c.card_id }}</td>
                             <td class="px-4 py-3">
                                 <span class="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">Active</span>
@@ -142,6 +151,9 @@
                             </td>
                         </tr>
                         {% endfor %}
+                        <tr id="assigned-empty-search" class="hidden">
+                            <td colspan="7" class="px-10 py-6 text-center text-gray-500 text-sm">No cards match your search.</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -155,11 +167,17 @@
 
         <!-- Unassigned Card Pool Table -->
         <div class="bg-white rounded-lg shadow-md mb-6">
-            <div class="p-4 border-b flex justify-between items-center">
+            <div class="p-4 border-b flex justify-between items-center gap-4">
                 <h2 class="text-lg font-semibold text-gray-800">Unassigned Card Pool
                     <span class="text-sm font-normal text-gray-500 ml-2">{{ unassigned_cards | length }} card{{ 's' if unassigned_cards | length != 1 else '' }}</span>
                 </h2>
-                <button onclick="refreshCards()" class="text-blue-600 hover:underline text-sm font-semibold">Refresh</button>
+                <div class="flex items-center gap-3">
+                    <input type="text" id="unassigned-search"
+                           oninput="filterCardTable('unassigned-search', 'unassigned-cards-tbody', 'unassigned-empty-search')"
+                           placeholder="Search cards..."
+                           class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <button onclick="refreshCards()" class="text-blue-600 hover:underline text-sm font-semibold">Refresh</button>
+                </div>
             </div>
 
             {% if unassigned_cards %}
@@ -178,7 +196,10 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100" id="unassigned-cards-tbody">
                         {% for c in unassigned_cards %}
-                        <tr class="hover:bg-gray-50 cursor-pointer" onclick="toggleCardQR('{{ c.card_id }}')">
+                        <tr class="hover:bg-gray-50 cursor-pointer card-row"
+                            data-card-id="{{ c.card_id }}"
+                            data-search="{{ c.card_id }}"
+                            onclick="toggleCardQR('{{ c.card_id }}')">
                             <td class="px-4 py-3 font-mono text-sm font-semibold text-gray-800">{{ c.card_id }}</td>
                             <td class="px-4 py-3">
                                 <span class="bg-gray-100 text-gray-600 text-xs font-bold px-3 py-1 rounded-full">In Pool</span>
@@ -208,6 +229,9 @@
                             </td>
                         </tr>
                         {% endfor %}
+                        <tr id="unassigned-empty-search" class="hidden">
+                            <td colspan="7" class="px-10 py-6 text-center text-gray-500 text-sm">No cards match your search.</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>

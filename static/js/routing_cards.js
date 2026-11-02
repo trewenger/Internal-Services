@@ -149,6 +149,35 @@ function refreshCards() {
     location.reload();
 }
 
+// ---- Search / filter card table ---------------------------------------------
+
+function filterCardTable(inputId, tbodyId, emptyRowId) {
+    const input = document.getElementById(inputId);
+    const tbody = document.getElementById(tbodyId);
+    if (!input || !tbody) return;
+
+    const query = input.value.trim().toLowerCase();
+    const rows  = tbody.querySelectorAll('tr.card-row');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        const haystack = (row.dataset.search || '').toLowerCase();
+        const matches  = !query || haystack.includes(query);
+        row.classList.toggle('hidden', !matches);
+
+        const qrRow = document.getElementById(`qr-row-${row.dataset.cardId}`);
+        if (!matches && qrRow) {
+            qrRow.classList.add('hidden');
+            const chevron = document.getElementById(`chevron-${row.dataset.cardId}`);
+            if (chevron) chevron.style.transform = '';
+        }
+        if (matches) visibleCount++;
+    });
+
+    const emptyRow = document.getElementById(emptyRowId);
+    if (emptyRow) emptyRow.classList.toggle('hidden', visibleCount !== 0);
+}
+
 // ============================================================================
 // Assign page — two-stage scan workflow
 // ============================================================================
