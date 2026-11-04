@@ -255,7 +255,21 @@ function handleBack() {
     }
 }
 
-function resetToStage1() {
+async function resetToStage1() {
+    if (_scannedCards.length > 0) {
+        const n = _scannedCards.length;
+        if (!confirm(`This will remove ${n} scanned card${n !== 1 ? 's' : ''} from this order. Continue?`)) {
+            return;
+        }
+        for (const c of _scannedCards) {
+            const ok = await _unassignCard(c.card_id);
+            if (!ok) {
+                alert(`Failed to remove card "${c.card_id}" — stopped before resetting. Please try again.`);
+                return;
+            }
+        }
+    }
+
     _confirmedOrder = null;
     _scannedCards   = [];
     document.getElementById('stage-2').classList.add('hidden');
@@ -350,6 +364,32 @@ async function _assignCard(cardId, force = false) {
     _renderScanList();
 }
 
+async function _unassignCard(cardId) {
+    try {
+        const resp = await fetch(`/routing-cards/api/cards/${encodeURIComponent(cardId)}/unassign`, {
+            method: 'POST',
+        });
+        return resp.ok;
+    } catch (e) {
+        return false;
+    }
+}
+
+async function removeScannedCard(cardId) {
+    const errEl = document.getElementById('scan-error');
+    _showInline(errEl, '');
+
+    const ok = await _unassignCard(cardId);
+    if (!ok) {
+        _showInline(errEl, `Failed to remove "${cardId}" — please try again.`);
+        return;
+    }
+
+    _scannedCards = _scannedCards.filter(c => c.card_id !== cardId);
+    _renderScanList();
+    document.getElementById('scan-input').focus();
+}
+
 async function toggleLastBatch(assignmentId) {
     try {
         const resp = await fetch(`/routing-cards/api/assign/${assignmentId}/last-batch`, {
@@ -408,6 +448,12 @@ function _renderScanList() {
                            Mark as last
                        </button>`
                 }
+            </td>
+            <td class="px-4 py-2">
+                <button onclick="removeScannedCard('${_esc(c.card_id)}')"
+                        class="text-xs text-red-500 hover:text-red-700 hover:underline transition">
+                    Remove
+                </button>
             </td>
         </tr>
     `).join('');

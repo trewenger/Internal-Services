@@ -34,7 +34,7 @@ class CardData:
         return {'cards': {}, 'assignments': []}
 
     @staticmethod
-    def _prune_closed(data: dict, per_card: int = 20) -> None:
+    def _prune_closed(data: dict, per_card: int = 5) -> None:
         """Drop oldest closed assignments per card, keeping the most recent `per_card`."""
         closed_by_card: dict[str, list] = {}
         for a in data['assignments']:
@@ -80,16 +80,21 @@ class CardData:
     def list_cards_with_assignments(self) -> list:
         data = self._read()
         active_by_card = {}
+        closed_by_card: dict[str, list] = {}
         for a in data['assignments']:
             if a['status'] == 'active':
                 active_by_card[a['card_id']] = a
+            elif a['status'] == 'closed':
+                closed_by_card.setdefault(a['card_id'], []).append(a)
         result = []
         for card_id, card in sorted(data['cards'].items()):
+            history = sorted(closed_by_card.get(card_id, []), key=lambda a: a['id'], reverse=True)
             result.append({
                 'card_id':    card_id,
                 'card_status': card['status'],
                 'created_at': card['created_at'],
                 'assignment': active_by_card.get(card_id),
+                'history':    history,
             })
         return result
 
