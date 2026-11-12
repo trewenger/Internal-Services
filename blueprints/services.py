@@ -1,12 +1,14 @@
 import logging
 import os
+import re
+import secrets
 import threading
 from datetime import datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, jsonify, render_template, request, session
 
-from API_Service_Network.VariousInternalServices.data import ServicesConfig, ServicesLog
+from API_Service_Network.VariousInternalServices.data import ServicesConfig, ServicesLog, ShortcutState
 from blueprints.auth import access_required, login_required
 from common.Clients.Email.EmailApi import send_email
 from config import Config
@@ -17,12 +19,15 @@ logger = logging.getLogger(__name__)
 # Instantiate data objects at module level
 services_config = ServicesConfig()
 services_log    = ServicesLog()
+shortcut_state  = ShortcutState()
 
 SERVICE_DESCRIPTIONS = {
     'on-time-performance': 'Queries Fishbowl for order completion data and updates the On-Time Performance Google Sheet.',
     'tax-system-health':   'Checks Fishbowl for tax compliance issues (product tax codes and customer exempt statuses).',
     'vendor-tracker':      'Finds parts currently at vendor via Fishbowl and updates the Vendor Tracker Google Sheet.',
     'wip-update':          'Updates the WIP Tracker Google Sheet with current work-in-progress data from Fishbowl.',
+    'onedrive-shortcuts':  'Adds "Add shortcut to OneDrive" shortcuts for configured SharePoint libraries to target '
+                           'users\' OneDrive, and removes them when a sync is deleted or a user leaves its targets.',
 }
 
 # ============================================================================
@@ -155,6 +160,22 @@ def run_wip_update(triggered_by:str='scheduler') -> None:
     services_log.append_run('wip-update', 'success' if success else 'error', triggered_by, log_data)
     _maybe_notify(services_config.get('wip-update'), success, log_data)
 
+# WORKING — see .claude/12. sharepoint_onedrive_shortcut.md
+def run_onedrive_shortcuts(triggered_by:str='scheduler') -> None:
+    services_config.set_running('onedrive-shortcuts', True)
+    cfg = services_config.get('onedrive-shortcuts')
+    try:
+        from API_Service_Network.VariousInternalServices.scripts.OneDriveShortcuts import onedrive_shortcuts
+        log_obj  = onedrive_shortcuts(syncs=cfg.get('syncs', []), state=shortcut_state)
+        success  = log_obj.error_flag() == 0
+        log_data = log_obj.get_log()
+    except Exception as e:
+        success, log_data = False, {'error': [str(e)]}
+        logger.error(f'onedrive-shortcuts failed: {e}')
+    services_config.save_result('onedrive-shortcuts', success)
+    services_log.append_run('onedrive-shortcuts', 'success' if success else 'error', triggered_by, log_data)
+    _maybe_notify(services_config.get('onedrive-shortcuts'), success, log_data)
+
 # Maps service name → runner. Used by the scheduler on startup and by the
 # generic /config route when rescheduling after a settings change.
 _RUNNERS = {
@@ -162,6 +183,7 @@ _RUNNERS = {
     'tax-system-health':   run_tax_system_health,
     'vendor-tracker':      run_vendor_tracker,
     'wip-update':          run_wip_update,
+    'onedrive-shortcuts':  run_onedrive_shortcuts,
 }
 
 # ============================================================================
@@ -298,6 +320,15 @@ def route_run_wip_update():
     return jsonify({'success': True, 'message': f'{msg} started'})
 
 
+@services_bp.route('/run/onedrive-shortcuts', methods=['POST'])
+@login_required
+def route_run_onedrive_shortcuts():
+    ok, msg, code = _start_thread('onedrive-shortcuts', run_onedrive_shortcuts)
+    if not ok:
+        return jsonify({'error': msg}), code
+    return jsonify({'success': True, 'message': f'{msg} started'})
+
+
 # ============================================================================
 # Routes — status, logs, config
 # ============================================================================
@@ -380,3 +411,187 @@ def update_service_config(service_name):
     except Exception as e:
         logger.error(f'Error updating config for {service_name}: {e}')
         return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# Routes — OneDrive Shortcuts (sync management, validate, preview)
+# See .claude/12. sharepoint_onedrive_shortcut.md
+# ============================================================================
+
+_SHORTCUT_KEY        = 'onedrive-shortcuts'
+_SYNC_ID_RE          = re.compile(r'^[0-9a-f]{8}$')
+_SITE_URL_RE         = re.compile(r'^https://[A-Za-z0-9-]+\.sharepoint\.com(/.*)?$', re.IGNORECASE)
+_TARGET_TYPES        = ('all_users', 'groups', 'users')
+_INVALID_NAME_CHARS  = set('"*:<>?/\\|')
+
+# Preview runs in a background thread (it can take longer than the IIS proxy timeout on a large
+# tenant); the UI polls GET /onedrive-shortcuts/preview for the result.
+_preview_lock  = threading.Lock()
+_preview_state = {'running': False, 'started_at': None, 'result': None, 'error': None}
+
+
+def _require_write():
+    """Returns a 403 response tuple if the current user lacks services write access, else None."""
+    if session.get('access', {}).get('services') != 'write':
+        return jsonify({'error': 'Write access to Services is required'}), 403
+    return None
+
+
+def _clean_list(values) -> list:
+    """Strips, drops blanks, and de-duplicates (case-insensitive, order kept) a list of strings."""
+    seen, out = set(), []
+    for v in values or []:
+        v = str(v).strip()
+        if v and v.lower() not in seen:
+            seen.add(v.lower())
+            out.append(v)
+    return out
+
+
+def _validate_syncs(raw: list) -> tuple:
+    """Validates and normalizes a submitted sync list. Returns (clean_syncs, error_message)."""
+    if not isinstance(raw, list):
+        return None, 'syncs must be a list'
+    clean, names, ids = [], set(), set()
+    for i, s in enumerate(raw, start=1):
+        if not isinstance(s, dict):
+            return None, f'Sync #{i} is invalid'
+        name = str(s.get('name', '')).strip()
+        label = f"Sync '{name}'" if name else f'Sync #{i}'
+        if not name:
+            return None, f'{label}: name is required'
+        if name.lower() in names:
+            return None, f"Sync names must be unique ('{name}' is used twice)"
+        names.add(name.lower())
+
+        site_url = str(s.get('site_url', '')).strip()
+        if not _SITE_URL_RE.match(site_url):
+            return None, f'{label}: site URL must look like https://<tenant>.sharepoint.com/sites/<site>'
+        library = str(s.get('library_name', '')).strip()
+        if not library:
+            return None, f'{label}: library name is required'
+        shortcut_name = str(s.get('shortcut_name', '') or '').strip()
+        if shortcut_name and (_INVALID_NAME_CHARS & set(shortcut_name) or shortcut_name.endswith('.')):
+            return None, f'{label}: shortcut name cannot contain " * : < > ? / \\ | or end with a period'
+
+        target_type = s.get('target_type')
+        if target_type not in _TARGET_TYPES:
+            return None, f'{label}: target type must be one of {", ".join(_TARGET_TYPES)}'
+        targets = _clean_list(s.get('targets')) if target_type != 'all_users' else []
+        if target_type != 'all_users' and not targets:
+            return None, f'{label}: add at least one {"group" if target_type == "groups" else "user"}'
+
+        sync_id = str(s.get('id', '')).strip().lower()
+        if not _SYNC_ID_RE.match(sync_id) or sync_id in ids:
+            sync_id = secrets.token_hex(4)
+            while sync_id in ids:
+                sync_id = secrets.token_hex(4)
+        ids.add(sync_id)
+
+        clean.append({
+            'id':            sync_id,
+            'name':          name,
+            'enabled':       bool(s.get('enabled', True)),
+            'site_url':      site_url.rstrip('/'),
+            'library_name':  library,
+            'shortcut_name': shortcut_name,
+            'target_type':   target_type,
+            'targets':       targets,
+            'exclude_upns':  _clean_list(s.get('exclude_upns')),
+        })
+    return clean, None
+
+
+@services_bp.route('/onedrive-shortcuts/syncs', methods=['PUT'])
+@login_required
+def save_shortcut_syncs():
+    denied = _require_write()
+    if denied:
+        return denied
+    cfg = services_config.get(_SHORTCUT_KEY)
+    if cfg.get('running'):
+        return jsonify({'error': 'OneDrive Shortcuts is running - wait for it to finish before saving syncs'}), 409
+
+    syncs, error = _validate_syncs((request.get_json() or {}).get('syncs'))
+    if error:
+        return jsonify({'error': error}), 400
+
+    try:
+        updated = services_config.update(_SHORTCUT_KEY, {'syncs': syncs})
+        queued  = shortcut_state.reconcile_with_config(syncs)
+    except Exception as e:
+        logger.error(f'Error saving OneDrive shortcut syncs: {e}')
+        return jsonify({'error': str(e)}), 500
+
+    # Process queued removals promptly rather than waiting for the next scheduled run.
+    run_started = False
+    if queued and not services_config.get(_SHORTCUT_KEY).get('running'):
+        threading.Thread(target=run_onedrive_shortcuts, kwargs={'triggered_by': 'sync-change'}, daemon=True).start()
+        run_started = True
+
+    return jsonify({'success': True, 'syncs': updated['syncs'], 'queued_removals': queued,
+                    'run_started': run_started, 'state': shortcut_state.summary()})
+
+
+@services_bp.route('/onedrive-shortcuts/state', methods=['GET'])
+@login_required
+def get_shortcut_state():
+    return jsonify({'success': True, 'state': shortcut_state.summary()})
+
+
+@services_bp.route('/onedrive-shortcuts/validate', methods=['POST'])
+@login_required
+def validate_shortcut_sync():
+    syncs, error = _validate_syncs([(request.get_json() or {}).get('sync')])
+    if error:
+        return jsonify({'error': error}), 400
+    try:
+        from API_Service_Network.VariousInternalServices.scripts.OneDriveShortcuts import validate_sync
+        return jsonify({'success': True, 'result': validate_sync(syncs[0])})
+    except Exception as e:
+        logger.error(f'OneDrive shortcut validate failed: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+def _run_preview() -> None:
+    try:
+        from API_Service_Network.VariousInternalServices.scripts.OneDriveShortcuts import preview_onedrive_shortcuts
+        result = preview_onedrive_shortcuts(services_config.get(_SHORTCUT_KEY).get('syncs', []), shortcut_state)
+        with _preview_lock:
+            _preview_state.update(result=result, error=None)
+    except Exception as e:
+        logger.error(f'OneDrive shortcut preview failed: {e}')
+        with _preview_lock:
+            _preview_state.update(result=None, error=str(e))
+    finally:
+        with _preview_lock:
+            _preview_state['running'] = False
+
+
+@services_bp.route('/onedrive-shortcuts/preview', methods=['POST'])
+@login_required
+def start_shortcut_preview():
+    with _preview_lock:
+        if _preview_state['running']:
+            return jsonify({'success': True, 'message': 'Preview already running'})
+        _preview_state.update(running=True, started_at=datetime.now().isoformat(), result=None, error=None)
+    threading.Thread(target=_run_preview, daemon=True).start()
+    return jsonify({'success': True, 'message': 'Preview started'})
+
+
+@services_bp.route('/onedrive-shortcuts/preview', methods=['GET'])
+@login_required
+def get_shortcut_preview():
+    with _preview_lock:
+        return jsonify({'success': True, **_preview_state})
+
+
+@services_bp.route('/onedrive-shortcuts/force-removals/<sync_id>', methods=['POST'])
+@login_required
+def allow_shortcut_removals(sync_id):
+    denied = _require_write()
+    if denied:
+        return denied
+    if not shortcut_state.set_force_removals(sync_id, True):
+        return jsonify({'error': 'Unknown sync'}), 404
+    return jsonify({'success': True, 'state': shortcut_state.summary()})

@@ -14,7 +14,9 @@ import msal
 import requests
 import re
 import os
+import time
 from datetime import datetime
+from urllib.parse import urlparse, unquote, quote
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.serialization.pkcs12 import load_key_and_certificates
 from cryptography.hazmat.backends import default_backend
@@ -91,11 +93,43 @@ class GraphSession:
             )
         return response
 
-    def _get_all_pages(self, url: str) -> list:
-        """ Internal method. Follows @odata.nextLink pagination and returns the combined 'value' list. """
+    # Throttling / transient-failure handling (used by _get_all_pages and the generic methods below).
+    _RETRY_STATUSES = {429, 503, 504}
+    _MAX_RETRIES = 5
+    _REQUEST_TIMEOUT = 120
+
+    @staticmethod
+    def _retry_delay(headers: dict, attempt: int) -> float:
+        """ Internal method. Seconds to wait before a retry: honors Retry-After, else exponential backoff. """
+        retry_after = (headers or {}).get("Retry-After") or (headers or {}).get("retry-after")
+        try:
+            return min(float(retry_after), 120.0)
+        except (TypeError, ValueError):
+            return min(2.0 ** attempt, 60.0)
+
+    def _send(self, method: str, url: str, headers: dict = None, **kwargs) -> requests.Response:
+        """
+        Internal method. Sends a request, retrying on 429/503/504 (honoring Retry-After) up to
+        _MAX_RETRIES times. Does NOT raise on error status - callers decide (_raise_for_status or
+        inspect the status themselves).
+        """
+        headers = headers or self._HEADERS
+        response = None
+        for attempt in range(self._MAX_RETRIES + 1):
+            response = requests.request(method, url, headers=headers, timeout=self._REQUEST_TIMEOUT, **kwargs)
+            if response.status_code not in self._RETRY_STATUSES or attempt == self._MAX_RETRIES:
+                return response
+            time.sleep(self._retry_delay(response.headers, attempt))
+        return response
+
+    def _get_all_pages(self, url: str, headers: dict = None) -> list:
+        """
+        Internal method. Follows @odata.nextLink pagination and returns the combined 'value' list.
+        Retries throttled (429/503/504) pages per Retry-After.
+        """
         results = []
         while url:
-            response = self._raise_for_status(requests.get(url, headers=self._HEADERS))
+            response = self._raise_for_status(self._send("GET", url, headers=headers))
             data = response.json()
             results.extend(data.get("value", []))
             url = data.get("@odata.nextLink")
@@ -453,3 +487,195 @@ class GraphSession:
             if diffs:
                 results.append({"item_id": item_id, "changes": diffs})
         return results
+
+    # ------------------------------------------------------------------
+    # Generic, stateless lookups (sites, libraries, directory) + batching.
+    # These do NOT touch the active _SITE_ID/_DRIVE_ID/_ITEM_ID context.
+    # ------------------------------------------------------------------
+
+    _GUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+    # Path segments that mark a page/library/list URL rather than the site itself.
+    _SITE_URL_STOP_SEGMENTS = ("/_layouts/", "/forms/", "/sitepages/", "/lists/", "/shared documents")
+
+    @classmethod
+    def parse_site_url(cls, site_url: str) -> tuple:
+        """
+        Splits a SharePoint site URL into (hostname, server_relative_path). Tolerates trailing
+        slashes, query strings, and pasted page/library URLs (e.g. '.../Shared Documents/Forms/AllItems.aspx'),
+        which are trimmed back to the site. Root sites return path ''.
+        :param site_url: e.g. 'https://contoso.sharepoint.com/sites/CompanyHub'
+        """
+        parsed = urlparse((site_url or "").strip())
+        if parsed.scheme != "https" or not parsed.netloc:
+            raise ValueError(f"Invalid SharePoint site URL: '{site_url}'")
+        path = unquote(parsed.path or "")
+        lowered = path.lower() + "/"
+        cut = len(path)
+        for stop in cls._SITE_URL_STOP_SEGMENTS:
+            idx = lowered.find(stop)
+            if idx != -1:
+                cut = min(cut, idx)
+        path = path[:cut]
+        if path.lower().endswith(".aspx"):
+            path = path.rsplit("/", 1)[0]
+        return parsed.netloc.lower(), path.rstrip("/")
+
+    def get_site_by_url(self, site_url: str) -> dict:
+        """
+        Resolves a SharePoint site from its URL.
+        :return: {"id", "site_guid", "web_guid", "web_url", "display_name", "hostname"}. The Graph
+            site id has the form 'hostname,siteGuid,webGuid'.
+        """
+        hostname, path = self.parse_site_url(site_url)
+        if path:
+            url = f"{self.base_url}/sites/{hostname}:{quote(path)}"
+        else:
+            url = f"{self.base_url}/sites/{hostname}"
+        site = self._raise_for_status(self._send("GET", url)).json()
+        parts = site["id"].split(",")
+        if len(parts) != 3:
+            raise Exception(f"Unexpected site id format from Graph: '{site['id']}'")
+        return {
+            "id": site["id"],
+            "hostname": parts[0],
+            "site_guid": parts[1],
+            "web_guid": parts[2],
+            "web_url": site.get("webUrl"),
+            "display_name": site.get("displayName"),
+        }
+
+    def list_site_drives(self, site_id: str) -> list:
+        """ Returns every document library (drive) on a site: [{"id", "name", "web_url", "drive_type"}]. """
+        url = f"{self.base_url}/sites/{site_id}/drives?$select=id,name,webUrl,driveType"
+        return [
+            {"id": d["id"], "name": d.get("name"), "web_url": d.get("webUrl"), "drive_type": d.get("driveType")}
+            for d in self._get_all_pages(url)
+        ]
+
+    def get_drive_list_id(self, site_id: str, drive_id: str) -> str:
+        """ Returns the SharePoint list ID backing a document library (drive). """
+        url = f"{self.base_url}/sites/{site_id}/drives/{drive_id}/list?$select=id"
+        return self._raise_for_status(self._send("GET", url)).json()["id"]
+
+    def get_user(self, upn_or_id: str, select: list = None):
+        """
+        Returns a user by UPN or object ID, or None if the user does not exist (404).
+        :param select: Optional list of properties to $select.
+        """
+        url = f"{self.base_url}/users/{quote(upn_or_id, safe='@')}"
+        if select:
+            url += f"?$select={','.join(select)}"
+        response = self._send("GET", url)
+        if response.status_code == 404:
+            return None
+        return self._raise_for_status(response).json()
+
+    def list_users(self, filter_query: str = None, select: list = None) -> list:
+        """
+        Returns all users matching an optional OData $filter (paged).
+        :param filter_query: e.g. "accountEnabled eq true and userType eq 'Member'"
+        :param select: Optional list of properties to $select.
+        """
+        params = ["$top=999"]
+        if filter_query:
+            params.append(f"$filter={quote(filter_query, safe='=')}")
+        if select:
+            params.append(f"$select={','.join(select)}")
+        return self._get_all_pages(f"{self.base_url}/users?{'&'.join(params)}")
+
+    def get_group(self, name_or_id: str) -> dict:
+        """
+        Returns a group ({"id", "displayName", ...}) by object ID or exact display name.
+        Raises if no group, or more than one group, matches the display name.
+        """
+        name_or_id = (name_or_id or "").strip()
+        if self._GUID_RE.match(name_or_id):
+            url = f"{self.base_url}/groups/{name_or_id}?$select=id,displayName,mail"
+            response = self._send("GET", url)
+            if response.status_code == 404:
+                raise ValueError(f"Group not found: '{name_or_id}'")
+            return self._raise_for_status(response).json()
+
+        escaped = name_or_id.replace("'", "''")
+        flt = "displayName eq '" + escaped + "'"
+        url = f"{self.base_url}/groups?$filter={quote(flt, safe='=')}&$select=id,displayName,mail"
+        groups = self._get_all_pages(url)
+        if not groups:
+            raise ValueError(f"Group not found: '{name_or_id}'")
+        if len(groups) > 1:
+            raise ValueError(f"More than one group is named '{name_or_id}' - use the group's object ID instead")
+        return groups[0]
+
+    def list_group_transitive_users(self, group_id: str, select: list = None) -> list:
+        """
+        Returns every user in a group, including members of nested groups (paged).
+        Non-user members (devices, service principals, the nested groups themselves) are excluded.
+        """
+        params = ["$top=999", "$count=true"]
+        if select:
+            params.append(f"$select={','.join(select)}")
+        url = f"{self.base_url}/groups/{group_id}/transitiveMembers/microsoft.graph.user?{'&'.join(params)}"
+        # OData type-cast segments are an advanced query - requires ConsistencyLevel + $count.
+        headers = {**self._HEADERS, "ConsistencyLevel": "eventual"}
+        return self._get_all_pages(url, headers=headers)
+
+    def batch(self, requests_: list) -> list:
+        """
+        Sends many Graph requests via JSON batching (POST /$batch, 20 per call). Individual
+        responses that are throttled (429/503/504) are retried per their Retry-After, up to
+        _MAX_RETRIES times.
+        :param requests_: [{"method": "GET|POST|PATCH|DELETE", "url": "/users/{id}/drive/...",
+            "body": {...} (optional), "headers": {...} (optional)}]. URLs are relative to /v1.0.
+        :return: One entry per request, in the same order: {"status": int, "headers": dict, "body": dict|None}.
+            Never raises for per-request errors - inspect "status" (and body["error"]["code"]).
+        """
+        results = [None] * len(requests_)
+        pending = list(range(len(requests_)))
+        attempt = 0
+
+        while pending:
+            retry, delay = [], 0.0
+            for start in range(0, len(pending), 20):
+                chunk = pending[start:start + 20]
+                payload = {"requests": []}
+                for idx in chunk:
+                    req = requests_[idx]
+                    entry = {"id": str(idx), "method": req["method"].upper(), "url": req["url"]}
+                    if req.get("body") is not None:
+                        entry["body"] = req["body"]
+                        entry["headers"] = {"Content-Type": "application/json", **(req.get("headers") or {})}
+                    elif req.get("headers"):
+                        entry["headers"] = req["headers"]
+                    payload["requests"].append(entry)
+
+                response = self._raise_for_status(self._send("POST", f"{self.base_url}/$batch", json=payload))
+                for item in response.json().get("responses", []):
+                    idx = int(item["id"])
+                    status = int(item.get("status", 0))
+                    result = {"status": status, "headers": item.get("headers") or {}, "body": item.get("body")}
+                    if status in self._RETRY_STATUSES and attempt < self._MAX_RETRIES:
+                        retry.append(idx)
+                        delay = max(delay, self._retry_delay(result["headers"], attempt))
+                    results[idx] = result
+
+            pending = sorted(retry)
+            if pending:
+                attempt += 1
+                time.sleep(delay)
+
+        return results
+
+    @staticmethod
+    def batch_error_code(result: dict) -> str:
+        """ Returns the Graph error code ('nameAlreadyExists', 'itemNotFound', ...) from a batch() result, or ''. """
+        body = result.get("body") if isinstance(result, dict) else None
+        if isinstance(body, dict):
+            return (body.get("error") or {}).get("code", "") or ""
+        return ""
+
+    @staticmethod
+    def batch_error_message(result: dict) -> str:
+        """ Returns a readable 'status code: message' string for a failed batch() result. """
+        body = result.get("body") if isinstance(result, dict) else None
+        err = (body.get("error") or {}) if isinstance(body, dict) else {}
+        return f"{result.get('status')} {err.get('code', '')}: {err.get('message', '')}".strip()

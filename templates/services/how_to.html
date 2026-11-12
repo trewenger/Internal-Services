@@ -32,6 +32,7 @@
                 <a href="#scheduling" class="hover:underline">4. Scheduling</a>
                 <a href="#notifications" class="hover:underline">5. Notifications</a>
                 <a href="#logs" class="hover:underline">6. Logs & Run History</a>
+                <a href="#onedrive-shortcuts" class="hover:underline">7. OneDrive Shortcuts</a>
             </div>
         </div>
 
@@ -75,6 +76,10 @@
                 <div class="border rounded-lg p-4">
                     <h3 class="text-lg font-semibold text-blue-600 mb-1">WIP Update</h3>
                     <p class="text-gray-700">Updates the WIP Tracker Google Sheet with current work-in-progress data from Fishbowl.</p>
+                </div>
+                <div class="border rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-blue-600 mb-1">OneDrive Shortcuts</h3>
+                    <p class="text-gray-700">Adds an "Add shortcut to OneDrive" shortcut for SharePoint libraries to target users' OneDrive, and removes it when a sync is deleted or a user leaves its targets. See <a href="#onedrive-shortcuts" class="text-blue-600 hover:underline">section 7</a>.</p>
                 </div>
             </div>
         </div>
@@ -204,6 +209,61 @@
 
             <div class="bg-blue-50 border border-blue-200 rounded p-4">
                 <span class="font-semibold">Tip:</span> Logs are loaded on demand when you open the Logs tab. Use Refresh if a run just completed and you want to see the latest entry.
+            </div>
+        </div>
+
+        <!-- 7. OneDrive Shortcuts -->
+        <div id="onedrive-shortcuts" class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">7. OneDrive Shortcuts</h2>
+            <p class="text-gray-700 mb-4">
+                Puts a shortcut to a SharePoint document library at the root of each target user's OneDrive (My Files),
+                the same as if each user had clicked <span class="font-semibold">Add shortcut to OneDrive</span> in SharePoint.
+                Run it on a schedule (daily is typical) so new hires get the shortcut automatically.
+            </p>
+
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">Setting up a sync</h3>
+            <p class="text-gray-700 mb-2">Open the card and click the <span class="font-semibold">Syncs</span> tab. Each sync has:</p>
+            <ul class="list-disc list-inside text-gray-700 space-y-1 ml-4 mb-4">
+                <li><span class="font-semibold">SharePoint site URL</span>: e.g. <code class="bg-gray-100 px-1 rounded text-sm">https://contoso.sharepoint.com/sites/CompanyHome</code>. Pasting a library or page URL from that site also works.</li>
+                <li><span class="font-semibold">Library name</span>: the document library's name as shown in SharePoint (usually <code class="bg-gray-100 px-1 rounded text-sm">Documents</code>).</li>
+                <li><span class="font-semibold">Shortcut name</span> (optional): OneDrive always puts the site name in front, so the shortcut is named <code class="bg-gray-100 px-1 rounded text-sm">&lt;Site name&gt; - &lt;this name&gt;</code>. Leave it blank to use the library name. That gives "Company Home - Documents", the same as a manual click.</li>
+                <li><span class="font-semibold">Sync to</span>: <em>All users</em> (every enabled, licensed member), <em>Groups</em> (by name or object ID; nested group members are included), or <em>Specific users</em> (by UPN). You can also exclude individual users.</li>
+            </ul>
+            <p class="text-gray-700 mb-4">
+                Click <span class="font-semibold">Validate</span> to check the site, library, and targets before saving. If the library name is wrong,
+                Validate lists the libraries on that site. Click <span class="font-semibold">Save Syncs</span> to apply.
+            </p>
+
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">Preview</h3>
+            <p class="text-gray-700 mb-4">
+                <span class="font-semibold">Preview</span> shows exactly what the next run would do: who would get the shortcut, who already has it,
+                who would have it removed, and who would be skipped. It makes no changes. Preview uses the saved syncs, so save first.
+            </p>
+
+            <h3 class="text-lg font-semibold text-gray-800 mb-2">What each run does</h3>
+            <ul class="list-disc list-inside text-gray-700 space-y-1 ml-4 mb-4">
+                <li>Adds the shortcut for every targeted user who doesn't have it, <span class="font-semibold">including users who deleted it</span>.</li>
+                <li>Users who already have it are left alone. Re-running never creates duplicates like "Company Home - Documents 1".</li>
+                <li>New hires whose OneDrive hasn't been set up yet are skipped and picked up on a later run (this is not an error).</li>
+                <li>If a user already has an unrelated file or folder with the same name, it is left untouched and reported as a name conflict.</li>
+            </ul>
+
+            <div class="bg-amber-50 border border-amber-300 rounded p-4 mb-4">
+                <h3 class="font-semibold text-amber-900 mb-2">How removal works</h3>
+                <ul class="list-disc list-inside text-amber-900 space-y-1">
+                    <li><span class="font-semibold">Deleting a sync removes its shortcut from every user's OneDrive</span> as soon as you confirm the delete (or on the next run if the service is busy). Deleting a saved sync does not need <span class="font-semibold">Save Syncs</span>.</li>
+                    <li><span class="font-semibold">Changing a sync's site, library, or shortcut name</span> removes the old shortcut and adds the new one.</li>
+                    <li>Users who <span class="font-semibold">leave a sync's targets</span> (removed from the group, account disabled, license removed, or excluded) lose the shortcut on the next run.</li>
+                    <li><span class="font-semibold">Disabling</span> a sync only pauses it. Existing shortcuts stay where they are.</li>
+                    <li>Only shortcuts this service created (or found already in place) are ever removed, and <span class="font-semibold">only the shortcut is removed</span>. The SharePoint library and its files are never affected.</li>
+                </ul>
+            </div>
+
+            <div class="bg-red-50 border border-red-200 rounded p-4">
+                <span class="font-semibold">Removal guard:</span> if a run would remove the shortcut from more than 5 users <em>and</em> more than 25% of a sync's users at once
+                (for example, because a group was emptied or renamed), nothing is removed and the run is marked as an error.
+                Check the sync's targets, then open <span class="font-semibold">Preview</span> and click <span class="font-semibold">Allow these removals</span>
+                if the removals are intended. The next run applies them once.
             </div>
         </div>
 

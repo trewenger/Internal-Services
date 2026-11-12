@@ -60,6 +60,11 @@ class Config:
     INTUIFLOW_LOCATION           = os.getenv('INTUIFLOW_LOCATION', '')
     CARD_HOST_BASE_URL           = os.getenv('CARD_HOST_BASE_URL', 'https://RWAS01')
 
+    # OneDrive Shortcuts service — mass-removal guard. A sync skips removing users who left its
+    # targets if that would remove more than max(GUARD_MIN, GUARD_PCT% of its tracked users) in one run.
+    SHORTCUT_REMOVAL_GUARD_PCT = int(os.getenv('SHORTCUT_REMOVAL_GUARD_PCT', 25))
+    SHORTCUT_REMOVAL_GUARD_MIN = int(os.getenv('SHORTCUT_REMOVAL_GUARD_MIN', 5))
+
     # Intuiflow settings
     INTUIFLOW_PROD_ADDRESS = os.getenv('INTUIFLOW_PROD_ADDRESS', 'intuiflow-prod-url')
     INTUIFLOW_PROD_TOKEN = os.getenv('INTUIFLOW_PROD_TOKEN', 'intuiflow-prod-token')

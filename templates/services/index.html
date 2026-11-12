@@ -104,8 +104,12 @@
 
                     <!-- Tab bar -->
                     <div class="flex justify-center border-b px-5 pt-0">
-                        {% for tab_id, tab_label in [('schedule','Schedule'),('notifications','Notifications'),('logs','Logs')] %}
+                        {% set _tabs = [('schedule','Schedule')]
+                                       + ([('syncs','Syncs')] if name == 'onedrive-shortcuts' else [])
+                                       + [('notifications','Notifications'),('logs','Logs')] %}
+                        {% for tab_id, tab_label in _tabs %}
                         <button id="tab-btn-{{ name }}-{{ tab_id }}"
+                                data-tab-btn data-card="{{ name }}" data-tab="{{ tab_id }}" data-readonly-ok
                                 onclick="switchTab('{{ name }}', '{{ tab_id }}')"
                                 class="px-4 py-3 text-sm border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition -mb-px">
                             {{ tab_label }}
@@ -236,6 +240,50 @@
                         </div>
                     </div>
 
+                    {% if name == 'onedrive-shortcuts' %}
+                    <!-- ===== TAB: Syncs (OneDrive Shortcuts only) ===== -->
+                    <div id="tab-panel-{{ name }}-syncs" class="hidden p-4">
+                        <div class="space-y-4">
+
+                            <!-- Removal note -->
+                            <div class="bg-amber-50 border border-amber-300 rounded-lg p-4 text-sm text-amber-900">
+                                <p class="font-semibold mb-1">How adding and removing shortcuts works</p>
+                                <ul class="list-disc ml-5 space-y-1">
+                                    <li>Each enabled sync adds a shortcut to the SharePoint library at the root of every targeted user's OneDrive (My Files), the same as if they clicked <em>Add shortcut to OneDrive</em>. Users who delete it get it back on the next run.</li>
+                                    <li><strong>Deleting a sync removes its shortcut from every user's OneDrive.</strong></li>
+                                    <li><strong>Changing a sync's site, library, or shortcut name</strong> removes the old shortcut and adds the new one.</li>
+                                    <li>Users who <strong>leave a sync's targets</strong> (removed from the group, disabled, unlicensed, or excluded) lose the shortcut on the next run. If an unusually large number would be removed at once, nothing is removed until you confirm it from <strong>Preview</strong>.</li>
+                                    <li><strong>Disabling</strong> a sync only pauses it. Existing shortcuts stay.</li>
+                                    <li>Only the shortcut is removed. The SharePoint library and its files are never affected.</li>
+                                </ul>
+                            </div>
+
+                            <!-- Pending removals (from deleted/edited syncs) -->
+                            <div id="sc-pending" class="hidden bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800"></div>
+
+                            <!-- Sync rows (rendered by services.js) -->
+                            <div id="sc-syncs-list" class="space-y-3"></div>
+
+                            <div class="flex flex-wrap items-center gap-2 pt-1">
+                                <button id="sc-add-btn" onclick="scAddSync()"
+                                        class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold py-2 px-4 rounded transition">
+                                    + Add Sync
+                                </button>
+                                <div class="flex-1"></div>
+                                <button id="sc-preview-btn" data-readonly-ok onclick="scStartPreview()"
+                                        class="bg-white border border-blue-500 text-blue-600 hover:bg-blue-50 disabled:border-gray-300 disabled:text-gray-400 text-sm font-bold py-2 px-4 rounded transition">
+                                    Preview
+                                </button>
+                                <button id="sc-save-btn" onclick="scSaveSyncs()"
+                                        class="bg-blue-500 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm font-bold py-2 px-4 rounded transition">
+                                    Save Syncs
+                                </button>
+                            </div>
+                            <p id="sc-dirty-hint" class="hidden text-xs text-amber-700 text-right">Unsaved changes. Save before previewing.</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <!-- ===== TAB: Logs ===== -->
                     <div id="tab-panel-{{ name }}-logs" class="hidden p-4">
                         <div class="space-y-4">
@@ -339,6 +387,24 @@
             {% endfor %}
         </div><!-- end services-grid -->
 
+        {% if 'onedrive-shortcuts' in services %}
+        <!-- OneDrive Shortcuts — Preview modal -->
+        <div id="sc-preview-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-40 items-center justify-center p-4"
+             onclick="if (event.target === this) scClosePreview()">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl flex flex-col" style="max-height: 85vh;">
+                <div class="flex justify-between items-center px-5 py-3 border-b">
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-800">OneDrive Shortcuts: Preview</h3>
+                        <p class="text-xs text-gray-500">What the next run would do, based on the saved syncs. Nothing has been changed.</p>
+                    </div>
+                    <button data-readonly-ok onclick="scClosePreview()"
+                            class="text-gray-400 hover:text-gray-700 text-2xl font-bold leading-none px-2">&times;</button>
+                </div>
+                <div id="sc-preview-body" class="p-5 overflow-y-auto text-sm"></div>
+            </div>
+        </div>
+        {% endif %}
+
     </div>
 </div>
 {% endblock %}
@@ -346,10 +412,14 @@
 {% block scripts %}
 <!-- Bootstrap config for services.js -->
 <script>window.SERVICES_CONFIG = {{ services | tojson }};</script>
+<script>window.SERVICES_CAN_WRITE = {{ can_write | tojson }};</script>
 {% if not can_write %}
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('button, input, select').forEach(el => { el.disabled = true; });
+        // Tabs, Preview, and modal close stay usable (data-readonly-ok) — they never change anything.
+        document.querySelectorAll('button, input, select').forEach(el => {
+            if (!el.hasAttribute('data-readonly-ok')) el.disabled = true;
+        });
     });
 </script>
 {% endif %}

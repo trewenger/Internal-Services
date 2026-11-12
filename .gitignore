@@ -41,6 +41,7 @@ API_Service_network/VariousInternalServices/Queries/*
 API_Service_network/VariousInternalServices/scripts/Outputs
 API_Service_network/VariousInternalServices/services_config.json
 API_Service_network/VariousInternalServices/services_log.json
+API_Service_network/VariousInternalServices/onedrive_shortcuts_state.json
 
 #                   Intuiflow
 API_Service_Network/Intuiflow/intuiflow_config.json
